@@ -1,0 +1,5194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070b13">
+<meta name="description" content="CubeLab — a polished interactive 3D Rubik's Cube simulator and two-phase solver built with Three.js.">
+<title>CubeLab — 3D Rubik's Cube Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b13'/%3E%3Cpath d='M32 8 54 20v24L32 56 10 44V20z' fill='none' stroke='%235ee7f5' stroke-width='2.5'/%3E%3Cpath d='M32 8v24M10 20l22 12 22-12M32 32v24' stroke='%23818cf8' stroke-width='2.5'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   CUBELAB — interface styles
+   ============================================================ */
+
+:root {
+  --bg-0: #05070c;
+  --bg-1: #0a0f18;
+  --bg-2: #111827;
+  --ink: #eef3fb;
+  --ink-soft: #c3cddd;
+  --muted: #8492a8;
+  --muted-2: #64748b;
+  --line: rgba(255, 255, 255, 0.085);
+  --line-strong: rgba(255, 255, 255, 0.15);
+  --glass: rgba(14, 20, 32, 0.66);
+  --glass-2: rgba(20, 28, 43, 0.58);
+  --cyan: #5ee7f5;
+  --cyan-strong: #22d3ee;
+  --indigo: #818cf8;
+  --amber: #fbbf24;
+  --green: #34d399;
+  --red: #fb7185;
+  --violet: #c4b5fd;
+  --face-u: #f8fafc;
+  --face-d: #ffd60a;
+  --face-l: #ff7a18;
+  --face-r: #ef2b3d;
+  --face-f: #18b45a;
+  --face-b: #2f6bff;
+  --radius-xl: 26px;
+  --radius-lg: 18px;
+  --radius-md: 13px;
+  --shadow: 0 26px 70px rgba(0, 0, 0, 0.48), 0 4px 18px rgba(0, 0, 0, 0.28);
+  --font: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", "Roboto Mono", ui-monospace, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg-0);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  position: relative;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: rgba(94, 231, 245, 0.28);
+}
+
+/* ---------- background ---------- */
+
+.bg-aurora,
+.bg-grid,
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bg-aurora {
+  z-index: 0;
+  background:
+    radial-gradient(60% 55% at 18% 8%, rgba(34, 211, 238, 0.12), transparent 62%),
+    radial-gradient(48% 42% at 84% 18%, rgba(129, 140, 248, 0.14), transparent 66%),
+    radial-gradient(60% 55% at 50% 108%, rgba(251, 191, 36, 0.07), transparent 65%),
+    linear-gradient(160deg, #0a101b 0%, #070b13 45%, #04060a 100%);
+}
+
+.bg-aurora::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: conic-gradient(
+    from 210deg at 50% 50%,
+    transparent 0deg,
+    rgba(94, 231, 245, 0.035) 55deg,
+    transparent 120deg,
+    rgba(129, 140, 248, 0.045) 220deg,
+    transparent 300deg
+  );
+  filter: blur(40px);
+  animation: aurora-spin 42s linear infinite;
+}
+
+.bg-grid {
+  z-index: 1;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(70% 60% at 50% 58%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 58%, #000 0%, transparent 78%);
+}
+
+.vignette {
+  z-index: 2;
+  background:
+    radial-gradient(78% 68% at 50% 48%, transparent 40%, rgba(3, 5, 9, 0.5) 100%),
+    linear-gradient(to bottom, rgba(4, 7, 12, 0.55), transparent 16%, transparent 82%, rgba(4, 7, 12, 0.75));
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+#stage:active {
+  cursor: grabbing;
+}
+
+/* ---------- shared glass ---------- */
+
+.glass {
+  background: linear-gradient(148deg, rgba(24, 33, 50, 0.72), rgba(9, 13, 22, 0.62));
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 74px;
+  padding: 0 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  pointer-events: none;
+  animation: fade-down 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(94, 231, 245, 0.16), rgba(129, 140, 248, 0.08));
+  border: 1px solid rgba(94, 231, 245, 0.24);
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.brand-mark svg {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 0 6px rgba(94, 231, 245, 0.4));
+}
+
+.brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 760;
+  letter-spacing: -0.035em;
+}
+
+.brand-text b {
+  font-weight: 800;
+  background: linear-gradient(110deg, #f7fbff 10%, #a5f3fc 52%, #c7d2fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-text span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--muted);
+  text-transform: uppercase;
+  transform: translateY(-1px);
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  pointer-events: auto;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(12, 18, 29, 0.62);
+  border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: border-color 0.3s, color 0.3s, background 0.3s;
+}
+
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(94, 231, 245, 0.12), 0 0 10px rgba(94, 231, 245, 0.75);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.status-pill[data-tone="scramble"] {
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(40, 30, 10, 0.46);
+}
+.status-pill[data-tone="scramble"] .dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12), 0 0 10px rgba(251, 191, 36, 0.7);
+}
+.status-pill[data-tone="solve"] {
+  color: #ddd6fe;
+  border-color: rgba(196, 181, 253, 0.24);
+  background: rgba(30, 25, 58, 0.48);
+}
+.status-pill[data-tone="solve"] .dot {
+  background: var(--violet);
+  box-shadow: 0 0 0 3px rgba(196, 181, 253, 0.12), 0 0 10px rgba(196, 181, 253, 0.7);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+.status-pill[data-tone="solved"] {
+  color: #a7f3d0;
+  border-color: rgba(52, 211, 153, 0.24);
+  background: rgba(8, 42, 32, 0.45);
+}
+.status-pill[data-tone="solved"] .dot {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.14), 0 0 12px rgba(52, 211, 153, 0.8);
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--line);
+}
+
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.icon-btn.is-off {
+  color: var(--muted-2);
+  opacity: 0.65;
+}
+
+/* ---------- stats ---------- */
+
+.stats-panel {
+  position: fixed;
+  z-index: 15;
+  top: 92px;
+  left: 30px;
+  width: 218px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 12px;
+  pointer-events: auto;
+  animation: fade-up 0.8s 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.stat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 8.5px;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-value.mono {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+.stat-value.small {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+
+.stat-value .unit {
+  font-size: 9px;
+  color: var(--muted-2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-left: 2px;
+}
+
+.stat-sep {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+  margin: -2px 0;
+}
+
+/* ---------- history ---------- */
+
+.history-panel {
+  position: fixed;
+  z-index: 15;
+  top: 92px;
+  right: 30px;
+  width: 232px;
+  max-height: 342px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+  animation: fade-up 0.8s 0.14s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel-title .count {
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(94, 231, 245, 0.1);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  transition: color 0.2s, background 0.2s;
+}
+
+.copy-btn:hover {
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.copy-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.history-list {
+  min-height: 54px;
+  max-height: 258px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 5px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+}
+
+.history-list::-webkit-scrollbar {
+  width: 5px;
+}
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+}
+
+.history-empty {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted-2);
+  padding: 4px 2px;
+}
+
+.move-chip {
+  --face: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px 4px 6px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  animation: chip-in 0.24s ease both;
+}
+
+.move-chip::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--face);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--face) 65%, transparent);
+}
+
+.move-chip.source-solver {
+  color: #ddd6fe;
+  border-color: rgba(196, 181, 253, 0.15);
+  background: rgba(129, 140, 248, 0.08);
+}
+
+.move-chip.source-user {
+  color: var(--ink);
+}
+
+.move-chip.f-U { --face: var(--face-u); }
+.move-chip.f-D { --face: var(--face-d); }
+.move-chip.f-L { --face: var(--face-l); }
+.move-chip.f-R { --face: var(--face-r); }
+.move-chip.f-F { --face: var(--face-f); }
+.move-chip.f-B { --face: var(--face-b); }
+.move-chip.f-M,
+.move-chip.f-E,
+.move-chip.f-S { --face: #94a3b8; }
+
+/* ---------- bottom interface ---------- */
+
+.bottom-ui {
+  position: fixed;
+  z-index: 25;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 0 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+  animation: fade-in 0.85s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.banner {
+  pointer-events: none;
+  width: min(640px, 100%);
+  padding: 10px 18px 11px;
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 16px;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: linear-gradient(140deg, rgba(20, 29, 46, 0.84), rgba(8, 12, 20, 0.76));
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  overflow: hidden;
+}
+
+.banner.show {
+  opacity: 1;
+  transform: none;
+}
+
+.banner-kicker {
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  background: rgba(94, 231, 245, 0.09);
+  border: 1px solid rgba(94, 231, 245, 0.16);
+  white-space: nowrap;
+}
+
+.banner-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.banner-move {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.banner-sub {
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banner-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.banner-progress span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, var(--cyan-strong), var(--indigo));
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.55);
+  transition: width 0.22s ease;
+}
+
+.speed-row {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(10, 15, 24, 0.6);
+  border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.speed-label {
+  padding-left: 8px;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.speed-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 650;
+  color: var(--muted);
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.speed-btn:hover {
+  color: var(--ink-soft);
+}
+
+.speed-btn.is-active {
+  color: #06131a;
+  background: linear-gradient(135deg, #8ff3fb, #b7c7ff);
+  box-shadow: 0 0 16px rgba(94, 231, 245, 0.22);
+}
+
+.pause-btn {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 650;
+  color: var(--violet);
+  background: rgba(196, 181, 253, 0.1);
+  border: 1px solid rgba(196, 181, 253, 0.16);
+  display: none;
+}
+
+.pause-btn.show {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pause-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
+.dock {
+  pointer-events: auto;
+  width: min(1010px, 100%);
+  padding: 11px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.face-pad {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.move-btn {
+  --face: #94a3b8;
+  position: relative;
+  height: 42px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(9, 13, 21, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s,
+    background 0.2s, box-shadow 0.2s, opacity 0.2s;
+  overflow: hidden;
+}
+
+.move-btn::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--face);
+  opacity: 0.9;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--face) 55%, transparent);
+}
+
+.move-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 100% at 50% 0%, color-mix(in srgb, var(--face) 12%, transparent), transparent 70%);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.move-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--face) 38%, transparent);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.move-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+.move-btn.prime {
+  color: var(--ink-soft);
+}
+
+.move-btn.prime::before {
+  left: 14px;
+  right: 14px;
+  opacity: 0.55;
+}
+
+.move-btn[data-face="U"] { --face: var(--face-u); }
+.move-btn[data-face="D"] { --face: var(--face-d); }
+.move-btn[data-face="L"] { --face: var(--face-l); }
+.move-btn[data-face="R"] { --face: var(--face-r); }
+.move-btn[data-face="F"] { --face: var(--face-f); }
+.move-btn[data-face="B"] { --face: var(--face-b); }
+
+.move-btn:disabled,
+.action-btn:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+  transform: none;
+  filter: saturate(0.5);
+}
+
+.dock-divider {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(180deg, transparent, var(--line-strong), transparent);
+  margin: 2px 0;
+  flex: 0 0 1px;
+}
+
+.actions {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 6px;
+}
+
+.action-btn {
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: transform 0.16s, background 0.2s, border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+
+.action-btn svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--line-strong);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.action-btn.scramble {
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.18);
+  background: rgba(251, 191, 36, 0.065);
+}
+
+.action-btn.scramble:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.11);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.action-btn.primary {
+  color: #041318;
+  background: linear-gradient(135deg, #7ceef8 0%, #67e8f9 38%, #a5b4fc 100%);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 8px 24px rgba(34, 211, 238, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  font-weight: 750;
+}
+
+.action-btn.primary:hover:not(:disabled) {
+  color: #020b0e;
+  box-shadow: 0 10px 30px rgba(34, 211, 238, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  filter: brightness(1.04);
+}
+
+.hint {
+  pointer-events: none;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.hint kbd {
+  display: inline-block;
+  min-width: 16px;
+  padding: 1px 4px;
+  margin: 0 1px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+}
+
+/* ---------- toast ---------- */
+
+.toast {
+  position: fixed;
+  z-index: 60;
+  top: 92px;
+  left: 50%;
+  transform: translate(-50%, -10px);
+  padding: 9px 15px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(12, 18, 29, 0.86);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s, transform 0.24s;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- modals ---------- */
+
+.modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 6, 11, 0.58);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  backdrop-filter: blur(14px) saturate(120%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-layer.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: min(82vh, 760px);
+  overflow-y: auto;
+  padding: 30px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(150deg, rgba(25, 35, 54, 0.94), rgba(8, 12, 20, 0.94));
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(14px) scale(0.98);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  scrollbar-width: thin;
+}
+
+.modal-layer.show .modal-card {
+  transform: none;
+}
+
+.modal-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-card::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.26);
+  border-radius: 999px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--muted);
+  transition: color 0.2s, background 0.2s;
+}
+
+.modal-close:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.modal-close svg {
+  width: 15px;
+  height: 15px;
+}
+
+.modal-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  background: rgba(94, 231, 245, 0.08);
+  border: 1px solid rgba(94, 231, 245, 0.16);
+}
+
+.modal-kicker .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+}
+
+.modal-title.gradient {
+  background: linear-gradient(110deg, #f8fbff 5%, #a5f3fc 48%, #c7d2fe 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.modal-sub {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.modal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.modal-stat {
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+}
+
+.modal-stat span {
+  display: block;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  margin-bottom: 5px;
+}
+
+.modal-stat b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.03em;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.modal-actions button {
+  flex: 1;
+  height: 42px;
+  border-radius: 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: transform 0.16s, filter 0.2s, background 0.2s;
+}
+
+.modal-actions button:active {
+  transform: scale(0.98);
+}
+
+.modal-actions .primary {
+  color: #041318;
+  background: linear-gradient(135deg, #7ceef8, #a5b4fc);
+  box-shadow: 0 10px 30px rgba(34, 211, 238, 0.22);
+}
+
+.modal-actions .ghost {
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+}
+
+/* ---------- help ---------- */
+
+.help-card {
+  width: min(560px, 100%);
+}
+
+.help-section {
+  margin-top: 20px;
+}
+
+.help-section h3 {
+  margin: 0 0 9px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.help-item {
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.help-item b {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.key-row kbd {
+  min-width: 23px;
+  height: 23px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--line-strong);
+  border-bottom-color: rgba(0, 0, 0, 0.5);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.credit {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted-2);
+}
+
+.credit a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(148, 163, 184, 0.4);
+}
+
+.credit a:hover {
+  color: var(--cyan);
+}
+
+/* ---------- solver overlay ---------- */
+
+.solver-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 6, 11, 0.56);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+
+.solver-layer.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.solver-card {
+  width: min(330px, 100%);
+  padding: 26px;
+  border-radius: 22px;
+  text-align: center;
+  background: linear-gradient(150deg, rgba(24, 34, 52, 0.95), rgba(8, 12, 20, 0.95));
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+}
+
+.solver-spinner {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: conic-gradient(from 90deg, transparent 0deg, rgba(94, 231, 245, 0.1) 80deg, #5ee7f5 250deg, #a5b4fc 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  animation: spin 0.9s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(94, 231, 245, 0.35));
+}
+
+.solver-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.solver-sub {
+  margin-top: 5px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.solver-bar {
+  height: 3px;
+  margin-top: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.solver-bar span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--indigo), transparent);
+  animation: solver-slide 1.15s ease-in-out infinite;
+}
+
+/* ---------- fatal error ---------- */
+
+.fatal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #05070c;
+}
+
+.fatal-card {
+  max-width: 520px;
+  padding: 28px;
+  border-radius: 20px;
+  background: #0d1320;
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+}
+
+.fatal-card h1 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.fatal-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.fatal-card code {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #fda4af;
+  word-break: break-word;
+}
+
+/* ---------- self test output (only in ?selftest) ---------- */
+
+#selftest {
+  position: fixed;
+  z-index: 10000;
+  left: 12px;
+  bottom: 12px;
+  max-width: 44vw;
+  max-height: 42vh;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #a7f3d0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ---------- animations ---------- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes solver-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+@keyframes aurora-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1180px) {
+  .history-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    height: 66px;
+    padding: 0 16px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .brand-text {
+    font-size: 18px;
+  }
+
+  .stats-panel {
+    top: 80px;
+    left: 16px;
+    width: 196px;
+    padding: 13px;
+  }
+
+  .stat-value {
+    font-size: 17px;
+  }
+
+  .stat-value.mono {
+    font-size: 15px;
+  }
+
+  .dock {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 9px;
+  }
+
+  .dock-divider {
+    display: none;
+  }
+
+  .actions {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .action-btn {
+    height: 38px;
+    padding: 0 8px;
+  }
+
+  .move-btn {
+    height: 38px;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  .toast {
+    top: 84px;
+  }
+}
+
+@media (max-width: 620px) {
+  .topbar {
+    height: 60px;
+    padding: 0 12px;
+  }
+
+  .brand {
+    gap: 9px;
+  }
+
+  .brand-mark {
+    width: 31px;
+    height: 31px;
+    border-radius: 10px;
+  }
+
+  .brand-mark svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .brand-text {
+    font-size: 16px;
+  }
+
+  .brand-text span {
+    display: none;
+  }
+
+  .status-pill {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 9px;
+  }
+
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .stats-panel {
+    top: 70px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    padding: 10px 12px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    border-radius: 14px;
+  }
+
+  .stat-label {
+    font-size: 7.5px;
+  }
+
+  .stat-value {
+    font-size: 15px;
+  }
+
+  .stat-value.mono {
+    font-size: 12.5px;
+  }
+
+  .stat-value.small {
+    font-size: 10.5px;
+  }
+
+  .stat-sep {
+    display: none;
+  }
+
+  .bottom-ui {
+    gap: 7px;
+    padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .banner {
+    padding: 8px 12px 9px;
+    gap: 2px 10px;
+    border-radius: 13px;
+  }
+
+  .banner-kicker {
+    font-size: 7px;
+    padding: 3px 6px;
+  }
+
+  .banner-move {
+    font-size: 15px;
+  }
+
+  .banner-sub {
+    font-size: 9px;
+  }
+
+  .speed-row {
+    gap: 3px;
+    padding: 3px;
+  }
+
+  .speed-label {
+    display: none;
+  }
+
+  .speed-btn {
+    height: 22px;
+    padding: 0 8px;
+    font-size: 8.5px;
+  }
+
+  .pause-btn {
+    height: 22px;
+    font-size: 8.5px;
+  }
+
+  .dock {
+    border-radius: 17px;
+    padding: 7px;
+  }
+
+  .face-pad {
+    gap: 4px;
+  }
+
+  .move-btn {
+    height: 35px;
+    border-radius: 9px;
+    font-size: 10.5px;
+  }
+
+  .move-btn::before {
+    left: 7px;
+    right: 7px;
+    bottom: 3px;
+  }
+
+  .actions {
+    gap: 4px;
+  }
+
+  .action-btn {
+    height: 34px;
+    border-radius: 9px;
+    font-size: 9.5px;
+    gap: 4px;
+  }
+
+  .action-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .modal-card {
+    padding: 24px 20px;
+    border-radius: 20px;
+  }
+
+  .modal-title {
+    font-size: 31px;
+  }
+
+  .modal-stats {
+    gap: 5px;
+  }
+
+  .modal-stat {
+    padding: 9px;
+  }
+
+  .modal-stat b {
+    font-size: 13px;
+  }
+
+  .help-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toast {
+    top: 148px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand-text {
+    display: none;
+  }
+
+  .action-btn span {
+    display: none;
+  }
+
+  .action-btn {
+    padding: 0;
+  }
+
+  .action-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 621px) {
+  .stats-panel {
+    top: 78px;
+  }
+
+  .history-panel {
+    top: 78px;
+    max-height: 260px;
+  }
+
+  .history-list {
+    max-height: 180px;
+  }
+
+  .banner {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="bg-aurora" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+<canvas id="stage" aria-label="Interactive 3D Rubik's Cube"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand" aria-label="CubeLab">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 2.6 21 7.7v10.2L12 23l-9-5.1V7.7L12 2.6Z" stroke="#8ff3fb" stroke-width="1.3" stroke-linejoin="round"/>
+        <path d="M12 2.6v10.2M3 7.7l9 5.1 9-5.1M12 12.8V23" stroke="#a5b4fc" stroke-width="1.1" stroke-linejoin="round" opacity=".9"/>
+      </svg>
+    </span>
+    <span class="brand-text"><b>CUBE</b><span>lab</span></span>
+  </div>
+
+  <div class="top-actions">
+    <div class="status-pill" id="statusPill" data-tone="ready" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="statusText">Ready</span>
+    </div>
+    <button class="icon-btn" id="soundBtn" type="button" aria-label="Toggle sound" title="Toggle sound">
+      <svg id="soundOnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
+        <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>
+      </svg>
+      <svg id="soundOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
+        <path d="m16 9 5 6M21 9l-5 6"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="helpBtn" type="button" aria-label="How to play" title="How to play">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M9.8 9.2a2.4 2.4 0 1 1 3.3 2.2c-.7.3-1.1.9-1.1 1.7v.3"/>
+        <path d="M12 17h.01"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<section class="stats-panel glass" aria-label="Cube statistics">
+  <div class="stat">
+    <span class="stat-label">Time</span>
+    <span class="stat-value mono" id="timer">00:00.0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Moves</span>
+    <span class="stat-value mono" id="moveCount">0</span>
+  </div>
+  <div class="stat-sep" aria-hidden="true"></div>
+  <div class="stat">
+    <span class="stat-label">Best</span>
+    <span class="stat-value mono" id="bestTime">—</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">State</span>
+    <span class="stat-value small" id="stateLabel">Solved</span>
+  </div>
+</section>
+
+<aside class="history-panel glass" aria-label="Move history">
+  <div class="panel-head">
+    <span class="panel-title">Move Log <span class="count" id="historyCount">0</span></span>
+    <button class="copy-btn" id="copyBtn" type="button" title="Copy move history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="11" height="11" rx="2"/>
+        <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+      </svg>
+      Copy
+    </button>
+  </div>
+  <div class="history-list" id="historyList">
+    <span class="history-empty">Your moves will appear here. Drag a sticker or use the dock below.</span>
+  </div>
+</aside>
+
+<div class="bottom-ui">
+  <div class="banner" id="banner" role="status" aria-live="polite">
+    <span class="banner-kicker" id="bannerKicker">Solver</span>
+    <div class="banner-main">
+      <span class="banner-move" id="bannerMove">R</span>
+      <span class="banner-sub" id="bannerSub">Step 1 of 18</span>
+    </div>
+    <div class="banner-progress" aria-hidden="true"><span id="bannerBar"></span></div>
+  </div>
+
+  <div class="speed-row" aria-label="Playback speed">
+    <span class="speed-label">Playback</span>
+    <button class="speed-btn" type="button" data-speed="650">Slow</button>
+    <button class="speed-btn is-active" type="button" data-speed="330">Medium</button>
+    <button class="speed-btn" type="button" data-speed="150">Fast</button>
+    <button class="pause-btn" id="pauseBtn" type="button" aria-label="Pause solver playback">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+      <span id="pauseText">Pause</span>
+    </button>
+  </div>
+
+  <div class="dock glass" role="toolbar" aria-label="Cube controls">
+    <div class="face-pad" id="facePad">
+      <button class="move-btn" type="button" data-move="U" data-face="U" title="U — turn the top face clockwise">U</button>
+      <button class="move-btn prime" type="button" data-move="U'" data-face="U" title="U′ — turn the top face counter-clockwise">U′</button>
+      <button class="move-btn" type="button" data-move="D" data-face="D" title="D — turn the bottom face clockwise">D</button>
+      <button class="move-btn prime" type="button" data-move="D'" data-face="D" title="D′ — turn the bottom face counter-clockwise">D′</button>
+      <button class="move-btn" type="button" data-move="L" data-face="L" title="L — turn the left face clockwise">L</button>
+      <button class="move-btn prime" type="button" data-move="L'" data-face="L" title="L′ — turn the left face counter-clockwise">L′</button>
+      <button class="move-btn" type="button" data-move="R" data-face="R" title="R — turn the right face clockwise">R</button>
+      <button class="move-btn prime" type="button" data-move="R'" data-face="R" title="R′ — turn the right face counter-clockwise">R′</button>
+      <button class="move-btn" type="button" data-move="F" data-face="F" title="F — turn the front face clockwise">F</button>
+      <button class="move-btn prime" type="button" data-move="F'" data-face="F" title="F′ — turn the front face counter-clockwise">F′</button>
+      <button class="move-btn" type="button" data-move="B" data-face="B" title="B — turn the back face clockwise">B</button>
+      <button class="move-btn prime" type="button" data-move="B'" data-face="B" title="B′ — turn the back face counter-clockwise">B′</button>
+    </div>
+
+    <div class="dock-divider" aria-hidden="true"></div>
+
+    <div class="actions">
+      <button class="action-btn scramble" id="scrambleBtn" type="button" title="Scramble with 20 random moves">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7M21 16v5h-5M14 14l7 7M3 8V3h5M10 10 3 3"/>
+        </svg>
+        <span>Scramble</span>
+      </button>
+      <button class="action-btn primary" id="solveBtn" type="button" title="Solve the current cube state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/>
+          <path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/>
+        </svg>
+        <span>Solve</span>
+      </button>
+      <button class="action-btn" id="undoBtn" type="button" title="Undo the last move">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 7 4 12l5 5"/>
+          <path d="M4 12h9a6 6 0 0 1 6 6v1"/>
+        </svg>
+        <span>Undo</span>
+      </button>
+      <button class="action-btn" id="resetBtn" type="button" title="Reset the cube">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7"/>
+          <path d="M3 4v5h5"/>
+        </svg>
+        <span>Reset</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="hint">
+    Drag a sticker to turn a layer · drag empty space to orbit · scroll to zoom ·
+    <kbd>U</kbd><kbd>D</kbd><kbd>L</kbd><kbd>R</kbd><kbd>F</kbd><kbd>B</kbd> turn · <kbd>⇧</kbd> prime
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal-layer" id="victory" role="dialog" aria-modal="true" aria-labelledby="victoryTitle">
+  <div class="modal-card">
+    <button class="modal-close" type="button" data-close="victory" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <span class="modal-kicker"><span class="dot"></span> Cube solved</span>
+    <h2 class="modal-title gradient" id="victoryTitle">Solved.</h2>
+    <p class="modal-sub" id="victorySub">Every sticker is home. Beautifully done.</p>
+    <div class="modal-stats">
+      <div class="modal-stat"><span>Time</span><b id="victoryTime">00:00.0</b></div>
+      <div class="modal-stat"><span>Moves</span><b id="victoryMoves">0</b></div>
+      <div class="modal-stat"><span>Best</span><b id="victoryBest">—</b></div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" type="button" id="victoryReset">Reset</button>
+      <button class="primary" type="button" id="victoryScramble">Scramble Again</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-layer" id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="modal-card help-card">
+    <button class="modal-close" type="button" data-close="help" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <span class="modal-kicker"><span class="dot"></span> Field guide</span>
+    <h2 class="modal-title" id="helpTitle">How to play</h2>
+    <p class="modal-sub">A fully interactive 3×3×3 cube with a built-in two-phase solver. Turn it yourself, scramble it, or let CubeLab find the path home.</p>
+
+    <div class="help-section">
+      <h3>Direct manipulation</h3>
+      <div class="help-grid">
+        <div class="help-item"><b>Turn a layer</b>Drag any sticker in the direction you want that row or column to move.</div>
+        <div class="help-item"><b>Orbit the view</b>Click and drag empty space around the cube to rotate your camera 360°.</div>
+        <div class="help-item"><b>Zoom</b>Scroll or pinch to move closer to the cube.</div>
+        <div class="help-item"><b>Middle slices</b>Drag the middle row of a face to turn the M, E, or S slice.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <h3>Keyboard</h3>
+      <div class="help-item">
+        <b>Face turns</b>
+        <div class="key-row">
+          <kbd>U</kbd><kbd>D</kbd><kbd>L</kbd><kbd>R</kbd><kbd>F</kbd><kbd>B</kbd>
+          <span style="color:var(--muted-2);font-size:10px;align-self:center">with</span>
+          <kbd>⇧</kbd><span style="color:var(--muted-2);font-size:10px;align-self:center">for prime</span>
+        </div>
+      </div>
+      <div class="help-grid" style="margin-top:8px">
+        <div class="help-item"><b>Undo</b><div class="key-row"><kbd>Z</kbd></div></div>
+        <div class="help-item"><b>Pause playback</b><div class="key-row"><kbd>Space</kbd></div></div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <h3>The solver</h3>
+      <div class="help-item">
+        <b>Kociemba two-phase reduction</b>
+        CubeLab computes a solution from the current state — usually 20 moves or fewer — then plays it back at your chosen speed. Slow, Medium, and Fast are in the playback bar above the controls.
+      </div>
+    </div>
+
+    <div class="credit">
+      Built with <a href="https://threejs.org/" target="_blank" rel="noreferrer">Three.js</a> and
+      <a href="https://github.com/ldez/cubejs" target="_blank" rel="noreferrer">cube.js</a> (MIT).
+      No accounts, no tracking, no network requests after the libraries load.
+    </div>
+  </div>
+</div>
+
+<div class="solver-layer" id="solverLayer" aria-hidden="true">
+  <div class="solver-card">
+    <div class="solver-spinner" aria-hidden="true"></div>
+    <div class="solver-title">Computing solution</div>
+    <div class="solver-sub" id="solverSub">Initializing the two-phase solver…</div>
+    <div class="solver-bar" aria-hidden="true"><span></span></div>
+  </div>
+</div>
+
+<noscript>
+  <div class="fatal"><div class="fatal-card"><h1>JavaScript is required</h1><p>CubeLab is a real-time 3D application. Please enable JavaScript and reload the page.</p></div></div>
+</noscript>
+
+<!-- Three.js and controls are loaded from a CDN so the app stays a single HTML file. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/RoundedBoxGeometry.js"></script>
+
+<!-- cube.js model + Kociemba two-phase solver, inlined for offline-capable single-file use. -->
+<script id="vendor-source">
+
+/* ------------------------------------------------------------------
+   cube.js — MIT License
+   Copyright (c) 2013-2017 Petri Lehtinen <petri@digip.org>
+   Copyright (c) 2018 Ludovic Fernandez
+
+   Permission is hereby granted, free of charge, to any person obtaining a
+   copy of this software and associated documentation files (the "Software"),
+   to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+   and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+   THE SOFTWARE.
+
+   Source: https://github.com/ldez/cubejs (v1.3.2)
+   ------------------------------------------------------------------ */
+
+/**
+ * Minified by jsDelivr using Terser v5.39.0.
+ * Original file: /npm/cubejs@1.3.2/lib/cube.js
+ *
+ * Do NOT use SRI with dynamically generated files! More information: https://www.jsdelivr.com/using-sri-with-dynamic-files
+ */
+(function(){var e,t,r,n,o,i,s,h,c,u,p,f,l,a,v,w,m,g,d,S,y,E,b,D,U,B,C,F,L,M,R,J,N,O,k,z,x,I,$;[d,g,a,o,m,e]=[0,1,2,3,4,5],[C,b,U,y,c,p,s,l]=[0,1,2,3,4,5,6,7],[B,E,D,S,f,h,u,i,w,v,t,r]=[0,1,2,3,4,5,6,7,8,9,10,11],[L,R,N]=(I=function(e){return $(9)+e},z=function(e){return I(9)+e},k=function(e){return z(9)+e},x=function(e){return k(9)+e},O=function(e){return x(9)+e},[[4,13,22,31,40,49],[[($=function(e){return e-1})(9),I(1),z(3)],[$(7),z(1),x(3)],[$(1),x(1),O(3)],[$(3),O(1),I(3)],[k(3),z(9),I(7)],[k(1),x(9),z(7)],[k(7),O(9),x(7)],[k(9),I(9),O(7)]],[[$(6),I(2)],[$(8),z(2)],[$(4),x(2)],[$(2),O(2)],[k(6),I(8)],[k(2),z(8)],[k(4),x(8)],[k(8),O(8)],[z(6),I(4)],[z(4),x(6)],[O(6),x(4)],[O(4),I(6)]]]),F=["U","R","F","D","L","B"],M=[["U","R","F"],["U","F","L"],["U","L","B"],["U","B","R"],["D","F","R"],["D","L","F"],["D","B","L"],["D","R","B"]],J=[["U","R"],["U","F"],["U","L"],["U","B"],["D","R"],["D","F"],["D","L"],["D","B"],["F","R"],["F","L"],["B","L"],["B","R"]],n=function(){var n,L,O,k,z,x,I,$,j,q,A;class G{constructor(e){null!=e?this.init(e):this.identity(),this.newCenter=function(){var e,t;for(t=[],e=0;e<=5;++e)t.push(0);return t}(),this.newCp=function(){var e,t;for(t=[],e=0;e<=7;++e)t.push(0);return t}(),this.newEp=function(){var e,t;for(t=[],e=0;e<=11;++e)t.push(0);return t}(),this.newCo=function(){var e,t;for(t=[],e=0;e<=7;++e)t.push(0);return t}(),this.newEo=function(){var e,t;for(t=[],e=0;e<=11;++e)t.push(0);return t}()}init(e){return this.center=e.center.slice(0),this.co=e.co.slice(0),this.ep=e.ep.slice(0),this.cp=e.cp.slice(0),this.eo=e.eo.slice(0)}identity(){return this.center=[0,1,2,3,4,5],this.cp=[0,1,2,3,4,5,6,7],this.co=function(){var e,t;for(t=[],e=0;e<=7;++e)t.push(0);return t}(),this.ep=[0,1,2,3,4,5,6,7,8,9,10,11],this.eo=function(){var e,t;for(t=[],e=0;e<=11;++e)t.push(0);return t}()}toJSON(){return{center:this.center,cp:this.cp,co:this.co,ep:this.ep,eo:this.eo}}asString(){var e,t,r,n,o,i,s,h,c,u,p;for(p=[],r=n=0;n<=5;r=++n)p[9*r+4]=F[this.center[r]];for(r=o=0;o<=7;r=++o)for(e=this.cp[r],c=this.co[r],s=i=0;i<=2;s=++i)p[R[r][(s+c)%3]]=M[e][s];for(r=h=0;h<=11;r=++h)for(t=this.ep[r],c=this.eo[r],s=u=0;u<=1;s=++u)p[N[r][(s+c)%2]]=J[t][s];return p.join("")}static fromString(e){var t,r,n,o,i,s,h,c,u,p,f,l,a,v;for(n=new G,o=s=0;s<=5;o=++s)for(i=h=0;h<=5;i=++h)e[9*o+4]===F[i]&&(n.center[o]=i);for(o=c=0;c<=7;o=++c){for(p=u=0;u<=2&&("U"!==(v=e[R[o][p]])&&"D"!==v);p=++u);for(t=e[R[o][(p+1)%3]],r=e[R[o][(p+2)%3]],i=f=0;f<=7;i=++f)t===M[i][1]&&r===M[i][2]&&(n.cp[o]=i,n.co[o]=p%3)}for(o=l=0;l<=11;o=++l)for(i=a=0;a<=11;i=++a){if(e[N[o][0]]===J[i][0]&&e[N[o][1]]===J[i][1]){n.ep[o]=i,n.eo[o]=0;break}if(e[N[o][0]]===J[i][1]&&e[N[o][1]]===J[i][0]){n.ep[o]=i,n.eo[o]=1;break}}return n}clone(){return new G(this.toJSON())}static random(){return(new G).randomize()}isSolved(){var e,t,r,n,o,i,s;for((r=this.clone()).move(r.upright()),t=o=0;o<=5;t=++o)if(r.center[t]!==t)return!1;for(e=i=0;i<=7;e=++i){if(r.cp[e]!==e)return!1;if(0!==r.co[e])return!1}for(n=s=0;s<=11;n=++s){if(r.ep[n]!==n)return!1;if(0!==r.eo[n])return!1}return!0}centerMultiply(e){var t,r,n;for(n=r=0;r<=5;n=++r)t=e.center[n],this.newCenter[n]=this.center[t];return[this.center,this.newCenter]=[this.newCenter,this.center],this}cornerMultiply(e){var t,r,n;for(n=r=0;r<=7;n=++r)t=e.cp[n],this.newCp[n]=this.cp[t],this.newCo[n]=(this.co[t]+e.co[n])%3;return[this.cp,this.newCp]=[this.newCp,this.cp],[this.co,this.newCo]=[this.newCo,this.co],this}edgeMultiply(e){var t,r,n;for(n=r=0;r<=11;n=++r)t=e.ep[n],this.newEp[n]=this.ep[t],this.newEo[n]=(this.eo[t]+e.eo[n])%2;return[this.ep,this.newEp]=[this.newEp,this.ep],[this.eo,this.newEo]=[this.newEo,this.eo],this}multiply(e){return this.centerMultiply(e),this.cornerMultiply(e),this.edgeMultiply(e),this}move(e){var t,r,n,o,i,s,h;for(r=0,o=(s=O(e)).length;r<o;r++)for(t=(i=s[r])/3|0,n=0,h=i%3;0<=h?n<=h:n>=h;0<=h?++n:--n)this.multiply(G.moves[t]);return this}upright(){var t,r,n,i,s,h;for(t=this.clone(),h=[],r=i=0;i<=5&&t.center[r]!==a;r=++i);switch(r){case o:h.push("x");break;case d:h.push("x'");break;case e:h.push("x2");break;case g:h.push("y");break;case m:h.push("y'")}for(h.length&&t.move(h[0]),n=s=0;s<=5&&t.center[n]!==d;n=++s);switch(n){case m:h.push("z");break;case g:h.push("z'");break;case o:h.push("z2")}return h.join(" ")}static inverse(e){var t,r,o,i,s,h,c;if(h=function(){var r,n,o,h;for(h=[],r=0,n=(o=O(e)).length;r<n;r++)i=o[r],t=i/3|0,s=i%3,h.push(3*t-(s-1)+1);return h}(),h.reverse(),"string"==typeof e){for(c="",r=0,o=h.length;r<o;r++)i=h[r],s=i%3,c+=n[t=i/3|0],1===s?c+="2":2===s&&(c+="'"),c+=" ";return c.substring(0,c.length-1)}return null!=e.length?h:h[0]}}return G.prototype.randomize=(j=function(e,t){return e+Math.floor(Math.random()*(t-e+1))},A=function(e){var t,r;for(t=e.length;0!==t;)r=j(0,t-1),e[t-=1],[e[t],e[r]]=[e[r],e[t]]},I=function(e){var t,r,n,o,i,s,h;for(i=0,h=function(){var t,r,n;for(n=[],t=0,r=e.length-1;0<=r?t<=r:t>=r;0<=r?++t:--t)n.push(!1);return n}();;){for(t=-1,n=o=0,s=e.length-1;0<=s?o<=s:o>=s;n=0<=s?++o:--o)if(!h[n]){t=n;break}if(-1===t)break;for(r=0;!h[t];)h[t]=!0,r++,t=e[t];i+=r+1}return i},k=function(e,t){return(I(t)+I(e))%2==0},x=function(e,t){for(A(t),A(e);!k(e,t);)A(t),A(e)},q=function(e,t){var r,n,o;for(r=n=0,o=e.length-1;0<=o?n<=o:n>=o;r=0<=o?++n:--n)e[r]=j(0,t-1)},$=function(e,t){return e.reduce((function(e,t){return e+t}))%t==0},z=function(e,t){for(q(e,3);!$(e,3);)q(e,3);for(q(t,2);!$(t,2);)q(t,2)},function(){return x(this.cp,this.ep),z(this.co,this.eo),this}),G.moves=[{center:[0,1,2,3,4,5],cp:[y,C,b,U,c,p,s,l],co:[0,0,0,0,0,0,0,0],ep:[S,B,E,D,f,h,u,i,w,v,t,r],eo:[0,0,0,0,0,0,0,0,0,0,0,0]},{center:[0,1,2,3,4,5],cp:[c,b,U,C,l,p,s,y],co:[2,0,0,1,1,0,0,2],ep:[w,E,D,S,r,h,u,i,f,v,t,B],eo:[0,0,0,0,0,0,0,0,0,0,0,0]},{center:[0,1,2,3,4,5],cp:[b,p,U,y,C,c,s,l],co:[1,2,0,0,2,1,0,0],ep:[B,v,D,S,f,w,u,i,E,h,t,r],eo:[0,1,0,0,0,1,0,0,1,1,0,0]},{center:[0,1,2,3,4,5],cp:[C,b,U,y,p,s,l,c],co:[0,0,0,0,0,0,0,0],ep:[B,E,D,S,h,u,i,f,w,v,t,r],eo:[0,0,0,0,0,0,0,0,0,0,0,0]},{center:[0,1,2,3,4,5],cp:[C,U,s,y,c,b,p,l],co:[0,1,2,0,0,2,1,0],ep:[B,E,t,S,f,h,v,i,w,D,u,r],eo:[0,0,0,0,0,0,0,0,0,0,0,0]},{center:[0,1,2,3,4,5],cp:[C,b,y,l,c,p,U,s],co:[0,0,1,2,0,0,2,1],ep:[B,E,D,r,f,h,u,t,w,v,S,i],eo:[0,0,0,1,0,0,0,1,0,0,1,1]},{center:[d,a,m,o,e,g],cp:[C,b,U,y,c,p,s,l],co:[0,0,0,0,0,0,0,0],ep:[B,E,D,S,f,h,u,i,v,t,r,w],eo:[0,0,0,0,0,0,0,0,1,1,1,1]},{center:[e,g,d,a,m,o],cp:[C,b,U,y,c,p,s,l],co:[0,0,0,0,0,0,0,0],ep:[B,S,D,i,f,E,u,h,w,v,t,r],eo:[0,1,0,1,0,1,0,1,0,0,0,0]},{center:[m,d,a,g,o,e],cp:[C,b,U,y,c,p,s,l],co:[0,0,0,0,0,0,0,0],ep:[D,E,u,S,B,h,f,i,w,v,t,r],eo:[1,0,1,0,1,0,1,0,0,0,0,0]}],L={U:0,R:1,F:2,D:3,L:4,B:5,E:6,M:7,S:8,x:9,y:10,z:11,u:12,r:13,f:14,d:15,l:16,b:17},n={0:"U",1:"R",2:"F",3:"D",4:"L",5:"B",6:"E",7:"M",8:"S",9:"x",10:"y",11:"z",12:"u",13:"r",14:"f",15:"d",16:"l",17:"b"},O=function(e){var t,r,n,o,i,s,h;if("string"==typeof e){for(h=[],t=0,r=(s=e.split(/\s+/)).length;t<r;t++)if(0!==(o=s[t]).length){if(o.length>2)throw new Error(`Invalid move: ${o}`);if(void 0===(n=L[o[0]]))throw new Error(`Invalid move: ${o}`);if(1===o.length)i=0;else if("2"===o[1])i=1;else{if("'"!==o[1])throw new Error(`Invalid move: ${o}`);i=2}h.push(3*n+i)}return h}return null!=e.length?e:[e]},G.moves.push((new G).move("R M' L'").toJSON()),G.moves.push((new G).move("U E' D'").toJSON()),G.moves.push((new G).move("F S B'").toJSON()),G.moves.push((new G).move("U E'").toJSON()),G.moves.push((new G).move("R M'").toJSON()),G.moves.push((new G).move("F S").toJSON()),G.moves.push((new G).move("D E").toJSON()),G.moves.push((new G).move("L M").toJSON()),G.moves.push((new G).move("B S'").toJSON()),G}.call(this),"undefined"!=typeof module&&null!==module?module.exports=n:this.Cube=n}).call(this);
+
+
+(function() {
+  var B, BL, BR, Cnk, Cube, D, DB, DBL, DF, DFR, DL, DLF, DR, DRB, F, FL, FR, Include, L, N_FLIP, N_FRtoBR, N_PARITY, N_SLICE1, N_SLICE2, N_TWIST, N_UBtoDF, N_URFtoDLF, N_URtoDF, N_URtoUL, R, U, UB, UBR, UF, UFL, UL, ULB, UR, URF, allMoves1, allMoves2, computeMoveTable, computePruningTable, faceNames, faceNums, factorial, key, max, mergeURtoDF, moveTableParams, nextMoves1, nextMoves2, permutationIndex, pruning, pruningTableParams, rotateLeft, rotateRight, value,
+    indexOf = [].indexOf;
+
+  Cube = this.Cube || require('./cube');
+
+  // Centers
+  [U, R, F, D, L, B] = [0, 1, 2, 3, 4, 5];
+
+  // Corners
+  [URF, UFL, ULB, UBR, DFR, DLF, DBL, DRB] = [0, 1, 2, 3, 4, 5, 6, 7];
+
+  // Edges
+  [UR, UF, UL, UB, DR, DF, DL, DB, FR, FL, BL, BR] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+  //# Helpers
+
+  // n choose k, i.e. the binomial coeffiecient
+  Cnk = function(n, k) {
+    var i, j, s;
+    if (n < k) {
+      return 0;
+    }
+    if (k > n / 2) {
+      k = n - k;
+    }
+    s = 1;
+    i = n;
+    j = 1;
+    while (i !== n - k) {
+      s *= i;
+      s /= j;
+      i--;
+      j++;
+    }
+    return s;
+  };
+
+  // n!
+  factorial = function(n) {
+    var f, i, m, ref;
+    f = 1;
+    for (i = m = 2, ref = n; (2 <= ref ? m <= ref : m >= ref); i = 2 <= ref ? ++m : --m) {
+      f *= i;
+    }
+    return f;
+  };
+
+  // Maximum of two values
+  max = function(a, b) {
+    if (a > b) {
+      return a;
+    } else {
+      return b;
+    }
+  };
+
+  // Rotate elements between l and r left by one place
+  rotateLeft = function(array, l, r) {
+    var i, m, ref, ref1, tmp;
+    tmp = array[l];
+    for (i = m = ref = l, ref1 = r - 1; (ref <= ref1 ? m <= ref1 : m >= ref1); i = ref <= ref1 ? ++m : --m) {
+      array[i] = array[i + 1];
+    }
+    return array[r] = tmp;
+  };
+
+  // Rotate elements between l and r right by one place
+  rotateRight = function(array, l, r) {
+    var i, m, ref, ref1, tmp;
+    tmp = array[r];
+    for (i = m = ref = r, ref1 = l + 1; (ref <= ref1 ? m <= ref1 : m >= ref1); i = ref <= ref1 ? ++m : --m) {
+      array[i] = array[i - 1];
+    }
+    return array[l] = tmp;
+  };
+
+  // Generate a function that computes permutation indices.
+
+  // The permutation index actually encodes two indices: Combination,
+  // i.e. positions of the cubies start..end (A) and their respective
+  // permutation (B). The maximum value for B is
+
+  //   maxB = (end - start + 1)!
+
+  // and the index is A * maxB + B
+  permutationIndex = function(context, start, end, fromEnd = false) {
+    var i, maxAll, maxB, maxOur, our, permName;
+    maxOur = end - start;
+    maxB = factorial(maxOur + 1);
+    if (context === 'corners') {
+      maxAll = 7;
+      permName = 'cp';
+    } else {
+      maxAll = 11;
+      permName = 'ep';
+    }
+    our = (function() {
+      var m, ref, results;
+      results = [];
+      for (i = m = 0, ref = maxOur; (0 <= ref ? m <= ref : m >= ref); i = 0 <= ref ? ++m : --m) {
+        results.push(0);
+      }
+      return results;
+    })();
+    return function(index) {
+      var a, b, c, j, k, m, o, p, perm, q, ref, ref1, ref10, ref2, ref3, ref4, ref5, ref6, ref7, ref8, ref9, t, u, w, x, y, z;
+      if (index != null) {
+        for (i = m = 0, ref = maxOur; (0 <= ref ? m <= ref : m >= ref); i = 0 <= ref ? ++m : --m) {
+          // Reset our to [start..end]
+          our[i] = i + start;
+        }
+        b = index % maxB; // permutation
+        a = index / maxB | 0; // combination
+
+        // Invalidate all edges
+        perm = this[permName];
+        for (i = o = 0, ref1 = maxAll; (0 <= ref1 ? o <= ref1 : o >= ref1); i = 0 <= ref1 ? ++o : --o) {
+          perm[i] = -1;
+        }
+// Generate permutation from index b
+        for (j = p = 1, ref2 = maxOur; (1 <= ref2 ? p <= ref2 : p >= ref2); j = 1 <= ref2 ? ++p : --p) {
+          k = b % (j + 1);
+          b = b / (j + 1) | 0;
+          // TODO: Implement rotateRightBy(our, 0, j, k)
+          while (k > 0) {
+            rotateRight(our, 0, j);
+            k--;
+          }
+        }
+        // Generate combination and set our edges
+        x = maxOur;
+        if (fromEnd) {
+          for (j = q = 0, ref3 = maxAll; (0 <= ref3 ? q <= ref3 : q >= ref3); j = 0 <= ref3 ? ++q : --q) {
+            c = Cnk(maxAll - j, x + 1);
+            if (a - c >= 0) {
+              perm[j] = our[maxOur - x];
+              a -= c;
+              x--;
+            }
+          }
+        } else {
+          for (j = t = ref4 = maxAll; (ref4 <= 0 ? t <= 0 : t >= 0); j = ref4 <= 0 ? ++t : --t) {
+            c = Cnk(j, x + 1);
+            if (a - c >= 0) {
+              perm[j] = our[x];
+              a -= c;
+              x--;
+            }
+          }
+        }
+        return this;
+      } else {
+        perm = this[permName];
+        for (i = u = 0, ref5 = maxOur; (0 <= ref5 ? u <= ref5 : u >= ref5); i = 0 <= ref5 ? ++u : --u) {
+          our[i] = -1;
+        }
+        a = b = x = 0;
+        // Compute the index a < ((maxAll + 1) choose (maxOur + 1)) and
+        // the permutation
+        if (fromEnd) {
+          for (j = w = ref6 = maxAll; (ref6 <= 0 ? w <= 0 : w >= 0); j = ref6 <= 0 ? ++w : --w) {
+            if ((start <= (ref7 = perm[j]) && ref7 <= end)) {
+              a += Cnk(maxAll - j, x + 1);
+              our[maxOur - x] = perm[j];
+              x++;
+            }
+          }
+        } else {
+          for (j = y = 0, ref8 = maxAll; (0 <= ref8 ? y <= ref8 : y >= ref8); j = 0 <= ref8 ? ++y : --y) {
+            if ((start <= (ref9 = perm[j]) && ref9 <= end)) {
+              a += Cnk(j, x + 1);
+              our[x] = perm[j];
+              x++;
+            }
+          }
+        }
+// Compute the index b < (maxOur + 1)! for the permutation
+        for (j = z = ref10 = maxOur; (ref10 <= 0 ? z <= 0 : z >= 0); j = ref10 <= 0 ? ++z : --z) {
+          k = 0;
+          while (our[j] !== start + j) {
+            rotateLeft(our, 0, j);
+            k++;
+          }
+          b = (j + 1) * b + k;
+        }
+        return a * maxB + b;
+      }
+    };
+  };
+
+  Include = {
+    // The twist of the 8 corners, 0 <= twist < 3^7. The orientation of
+    // the DRB corner is fully determined by the orientation of the other
+    // corners.
+    twist: function(twist) {
+      var i, m, o, ori, parity, v;
+      if (twist != null) {
+        parity = 0;
+        for (i = m = 6; m >= 0; i = --m) {
+          ori = twist % 3;
+          twist = (twist / 3) | 0;
+          this.co[i] = ori;
+          parity += ori;
+        }
+        this.co[7] = (3 - parity % 3) % 3;
+        return this;
+      } else {
+        v = 0;
+        for (i = o = 0; o <= 6; i = ++o) {
+          v = 3 * v + this.co[i];
+        }
+        return v;
+      }
+    },
+    // The flip of the 12 edges, 0 <= flip < 2^11. The orientation of the
+    // BR edge is fully determined by the orientation of the other edges.
+    flip: function(flip) {
+      var i, m, o, ori, parity, v;
+      if (flip != null) {
+        parity = 0;
+        for (i = m = 10; m >= 0; i = --m) {
+          ori = flip % 2;
+          flip = flip / 2 | 0;
+          this.eo[i] = ori;
+          parity += ori;
+        }
+        this.eo[11] = (2 - parity % 2) % 2;
+        return this;
+      } else {
+        v = 0;
+        for (i = o = 0; o <= 10; i = ++o) {
+          v = 2 * v + this.eo[i];
+        }
+        return v;
+      }
+    },
+    // Parity of the corner permutation
+    cornerParity: function() {
+      var i, j, m, o, ref, ref1, ref2, ref3, s;
+      s = 0;
+      for (i = m = ref = DRB, ref1 = URF + 1; (ref <= ref1 ? m <= ref1 : m >= ref1); i = ref <= ref1 ? ++m : --m) {
+        for (j = o = ref2 = i - 1, ref3 = URF; (ref2 <= ref3 ? o <= ref3 : o >= ref3); j = ref2 <= ref3 ? ++o : --o) {
+          if (this.cp[j] > this.cp[i]) {
+            s++;
+          }
+        }
+      }
+      return s % 2;
+    },
+    // Parity of the edges permutation. Parity of corners and edges are
+    // the same if the cube is solvable.
+    edgeParity: function() {
+      var i, j, m, o, ref, ref1, ref2, ref3, s;
+      s = 0;
+      for (i = m = ref = BR, ref1 = UR + 1; (ref <= ref1 ? m <= ref1 : m >= ref1); i = ref <= ref1 ? ++m : --m) {
+        for (j = o = ref2 = i - 1, ref3 = UR; (ref2 <= ref3 ? o <= ref3 : o >= ref3); j = ref2 <= ref3 ? ++o : --o) {
+          if (this.ep[j] > this.ep[i]) {
+            s++;
+          }
+        }
+      }
+      return s % 2;
+    },
+    // Permutation of the six corners URF, UFL, ULB, UBR, DFR, DLF
+    URFtoDLF: permutationIndex('corners', URF, DLF),
+    // Permutation of the three edges UR, UF, UL
+    URtoUL: permutationIndex('edges', UR, UL),
+    // Permutation of the three edges UB, DR, DF
+    UBtoDF: permutationIndex('edges', UB, DF),
+    // Permutation of the six edges UR, UF, UL, UB, DR, DF
+    URtoDF: permutationIndex('edges', UR, DF),
+    // Permutation of the equator slice edges FR, FL, BL and BR
+    FRtoBR: permutationIndex('edges', FR, BR, true)
+  };
+
+  for (key in Include) {
+    value = Include[key];
+    Cube.prototype[key] = value;
+  }
+
+  computeMoveTable = function(context, coord, size) {
+    var apply, cube, i, inner, j, k, m, move, o, p, ref, results;
+    // Loop through all valid values for the coordinate, setting cube's
+    // state in each iteration. Then apply each of the 18 moves to the
+    // cube, and compute the resulting coordinate.
+    apply = context === 'corners' ? 'cornerMultiply' : 'edgeMultiply';
+    cube = new Cube;
+    results = [];
+    for (i = m = 0, ref = size - 1; (0 <= ref ? m <= ref : m >= ref); i = 0 <= ref ? ++m : --m) {
+      cube[coord](i);
+      inner = [];
+      for (j = o = 0; o <= 5; j = ++o) {
+        move = Cube.moves[j];
+        for (k = p = 0; p <= 2; k = ++p) {
+          cube[apply](move);
+          inner.push(cube[coord]());
+        }
+        // 4th face turn restores the cube
+        cube[apply](move);
+      }
+      results.push(inner);
+    }
+    return results;
+  };
+
+  // Because we only have the phase 2 URtoDF coordinates, we need to
+  // merge the URtoUL and UBtoDF coordinates to URtoDF in the beginning
+  // of phase 2.
+  mergeURtoDF = (function() {
+    var a, b;
+    a = new Cube;
+    b = new Cube;
+    return function(URtoUL, UBtoDF) {
+      var i, m;
+      // Collisions can be found because unset are set to -1
+      a.URtoUL(URtoUL);
+      b.UBtoDF(UBtoDF);
+      for (i = m = 0; m <= 7; i = ++m) {
+        if (a.ep[i] !== -1) {
+          if (b.ep[i] !== -1) {
+            return -1; // collision
+          } else {
+            b.ep[i] = a.ep[i];
+          }
+        }
+      }
+      return b.URtoDF();
+    };
+  })();
+
+  N_TWIST = 2187; // 3^7 corner orientations
+
+  N_FLIP = 2048; // 2^11 possible edge flips
+
+  N_PARITY = 2; // 2 possible parities
+
+  N_FRtoBR = 11880; // 12!/(12-4)! permutations of FR..BR edges
+
+  N_SLICE1 = 495; // (12 choose 4) possible positions of FR..BR edges
+
+  N_SLICE2 = 24; // 4! permutations of FR..BR edges in phase 2
+
+  N_URFtoDLF = 20160; // 8!/(8-6)! permutations of URF..DLF corners
+
+
+  // The URtoDF move table is only computed for phase 2 because the full
+  // table would have >650000 entries
+  N_URtoDF = 20160; // 8!/(8-6)! permutation of UR..DF edges in phase 2
+
+  N_URtoUL = 1320; // 12!/(12-3)! permutations of UR..UL edges
+
+  N_UBtoDF = 1320; // 12!/(12-3)! permutations of UB..DF edges
+
+
+  // The move table for parity is so small that it's included here
+  Cube.moveTables = {
+    parity: [[1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1], [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]],
+    twist: null,
+    flip: null,
+    FRtoBR: null,
+    URFtoDLF: null,
+    URtoDF: null,
+    URtoUL: null,
+    UBtoDF: null,
+    mergeURtoDF: null
+  };
+
+  // Other move tables are computed on the fly
+  moveTableParams = {
+    // name: [scope, size]
+    twist: ['corners', N_TWIST],
+    flip: ['edges', N_FLIP],
+    FRtoBR: ['edges', N_FRtoBR],
+    URFtoDLF: ['corners', N_URFtoDLF],
+    URtoDF: ['edges', N_URtoDF],
+    URtoUL: ['edges', N_URtoUL],
+    UBtoDF: ['edges', N_UBtoDF],
+    mergeURtoDF: []
+  };
+
+  Cube.computeMoveTables = function(...tables) {
+    var len, m, name, scope, size, tableName;
+    if (tables.length === 0) {
+      tables = (function() {
+        var results;
+        results = [];
+        for (name in moveTableParams) {
+          results.push(name);
+        }
+        return results;
+      })();
+    }
+    for (m = 0, len = tables.length; m < len; m++) {
+      tableName = tables[m];
+      if (this.moveTables[tableName] !== null) {
+        // Already computed
+        continue;
+      }
+      if (tableName === 'mergeURtoDF') {
+        this.moveTables.mergeURtoDF = (function() {
+          var UBtoDF, URtoUL, o, results;
+          results = [];
+          for (URtoUL = o = 0; o <= 335; URtoUL = ++o) {
+            results.push((function() {
+              var p, results1;
+              results1 = [];
+              for (UBtoDF = p = 0; p <= 335; UBtoDF = ++p) {
+                results1.push(mergeURtoDF(URtoUL, UBtoDF));
+              }
+              return results1;
+            })());
+          }
+          return results;
+        })();
+      } else {
+        [scope, size] = moveTableParams[tableName];
+        this.moveTables[tableName] = computeMoveTable(scope, tableName, size);
+      }
+    }
+    return this;
+  };
+
+  // Phase 1: All moves are valid
+  allMoves1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+
+  // The list of next valid phase 1 moves when the given face was turned
+  // in the last move
+  nextMoves1 = (function() {
+    var face, lastFace, m, next, o, p, power, results;
+    results = [];
+    for (lastFace = m = 0; m <= 5; lastFace = ++m) {
+      next = [];
+// Don't allow commuting moves, e.g. U U'. Also make sure that
+// opposite faces are always moved in the same order, i.e. allow
+// U D but no D U. This avoids sequences like U D U'.
+      for (face = o = 0; o <= 5; face = ++o) {
+        if (face !== lastFace && face !== lastFace - 3) {
+// single, double or inverse move
+          for (power = p = 0; p <= 2; power = ++p) {
+            next.push(face * 3 + power);
+          }
+        }
+      }
+      results.push(next);
+    }
+    return results;
+  })();
+
+  // Phase 2: Double moves of all faces plus quarter moves of U and D
+  allMoves2 = [0, 1, 2, 4, 7, 9, 10, 11, 13, 16];
+
+  nextMoves2 = (function() {
+    var face, lastFace, len, m, next, o, p, power, powers, results;
+    results = [];
+    for (lastFace = m = 0; m <= 5; lastFace = ++m) {
+      next = [];
+      for (face = o = 0; o <= 5; face = ++o) {
+        if (!(face !== lastFace && face !== lastFace - 3)) {
+          continue;
+        }
+        // Allow all moves of U and D and double moves of others
+        powers = face === 0 || face === 3 ? [0, 1, 2] : [1];
+        for (p = 0, len = powers.length; p < len; p++) {
+          power = powers[p];
+          next.push(face * 3 + power);
+        }
+      }
+      results.push(next);
+    }
+    return results;
+  })();
+
+  // 8 values are encoded in one number
+  pruning = function(table, index, value) {
+    var pos, shift, slot;
+    pos = index % 8;
+    slot = index >> 3;
+    shift = pos << 2;
+    if (value != null) {
+      // Set
+      table[slot] &= ~(0xF << shift);
+      table[slot] |= value << shift;
+      return value;
+    } else {
+      // Get
+      return (table[slot] & (0xF << shift)) >>> shift;
+    }
+  };
+
+  computePruningTable = function(phase, size, currentCoords, nextIndex) {
+    var current, depth, done, index, len, m, move, moves, next, o, ref, table, x;
+    // Initialize all values to 0xF
+    table = (function() {
+      var m, ref, results;
+      results = [];
+      for (x = m = 0, ref = Math.ceil(size / 8) - 1; (0 <= ref ? m <= ref : m >= ref); x = 0 <= ref ? ++m : --m) {
+        results.push(0xFFFFFFFF);
+      }
+      return results;
+    })();
+    if (phase === 1) {
+      moves = allMoves1;
+    } else {
+      moves = allMoves2;
+    }
+    depth = 0;
+    pruning(table, 0, depth);
+    done = 1;
+    // In each iteration, take each state found in the previous depth and
+    // compute the next state. Stop when all states have been assigned a
+    // depth.
+    while (done !== size) {
+      for (index = m = 0, ref = size - 1; (0 <= ref ? m <= ref : m >= ref); index = 0 <= ref ? ++m : --m) {
+        if (!(pruning(table, index) === depth)) {
+          continue;
+        }
+        current = currentCoords(index);
+        for (o = 0, len = moves.length; o < len; o++) {
+          move = moves[o];
+          next = nextIndex(current, move);
+          if (pruning(table, next) === 0xF) {
+            pruning(table, next, depth + 1);
+            done++;
+          }
+        }
+      }
+      depth++;
+    }
+    return table;
+  };
+
+  Cube.pruningTables = {
+    sliceTwist: null,
+    sliceFlip: null,
+    sliceURFtoDLFParity: null,
+    sliceURtoDFParity: null
+  };
+
+  pruningTableParams = {
+    // name: [phase, size, currentCoords, nextIndex]
+    sliceTwist: [
+      1,
+      N_SLICE1 * N_TWIST,
+      function(index) {
+        return [index % N_SLICE1,
+      index / N_SLICE1 | 0];
+      },
+      function(current,
+      move) {
+        var newSlice,
+      newTwist,
+      slice,
+      twist;
+        [slice,
+      twist] = current;
+        newSlice = Cube.moveTables.FRtoBR[slice * 24][move] / 24 | 0;
+        newTwist = Cube.moveTables.twist[twist][move];
+        return newTwist * N_SLICE1 + newSlice;
+      }
+    ],
+    sliceFlip: [
+      1,
+      N_SLICE1 * N_FLIP,
+      function(index) {
+        return [index % N_SLICE1,
+      index / N_SLICE1 | 0];
+      },
+      function(current,
+      move) {
+        var flip,
+      newFlip,
+      newSlice,
+      slice;
+        [slice,
+      flip] = current;
+        newSlice = Cube.moveTables.FRtoBR[slice * 24][move] / 24 | 0;
+        newFlip = Cube.moveTables.flip[flip][move];
+        return newFlip * N_SLICE1 + newSlice;
+      }
+    ],
+    sliceURFtoDLFParity: [
+      2,
+      N_SLICE2 * N_URFtoDLF * N_PARITY,
+      function(index) {
+        return [index % 2,
+      (index / 2 | 0) % N_SLICE2,
+      (index / 2 | 0) / N_SLICE2 | 0];
+      },
+      function(current,
+      move) {
+        var URFtoDLF,
+      newParity,
+      newSlice,
+      newURFtoDLF,
+      parity,
+      slice;
+        [parity,
+      slice,
+      URFtoDLF] = current;
+        newParity = Cube.moveTables.parity[parity][move];
+        newSlice = Cube.moveTables.FRtoBR[slice][move];
+        newURFtoDLF = Cube.moveTables.URFtoDLF[URFtoDLF][move];
+        return (newURFtoDLF * N_SLICE2 + newSlice) * 2 + newParity;
+      }
+    ],
+    sliceURtoDFParity: [
+      2,
+      N_SLICE2 * N_URtoDF * N_PARITY,
+      function(index) {
+        return [index % 2,
+      (index / 2 | 0) % N_SLICE2,
+      (index / 2 | 0) / N_SLICE2 | 0];
+      },
+      function(current,
+      move) {
+        var URtoDF,
+      newParity,
+      newSlice,
+      newURtoDF,
+      parity,
+      slice;
+        [parity,
+      slice,
+      URtoDF] = current;
+        newParity = Cube.moveTables.parity[parity][move];
+        newSlice = Cube.moveTables.FRtoBR[slice][move];
+        newURtoDF = Cube.moveTables.URtoDF[URtoDF][move];
+        return (newURtoDF * N_SLICE2 + newSlice) * 2 + newParity;
+      }
+    ]
+  };
+
+  Cube.computePruningTables = function(...tables) {
+    var len, m, name, params, tableName;
+    if (tables.length === 0) {
+      tables = (function() {
+        var results;
+        results = [];
+        for (name in pruningTableParams) {
+          results.push(name);
+        }
+        return results;
+      })();
+    }
+    for (m = 0, len = tables.length; m < len; m++) {
+      tableName = tables[m];
+      if (this.pruningTables[tableName] !== null) {
+        // Already computed
+        continue;
+      }
+      params = pruningTableParams[tableName];
+      this.pruningTables[tableName] = computePruningTable(...params);
+    }
+    return this;
+  };
+
+  Cube.initSolver = function() {
+    Cube.computeMoveTables();
+    return Cube.computePruningTables();
+  };
+
+  Cube.prototype.solveUpright = function(maxDepth = 22) {
+    var State, freeStates, moveNames, phase1, phase1search, phase2, phase2search, solution, state, x;
+    // Names for all moves, i.e. U, U2, U', F, F2, ...
+    moveNames = (function() {
+      var face, faceName, m, o, power, powerName, result;
+      faceName = ['U', 'R', 'F', 'D', 'L', 'B'];
+      powerName = ['', '2', "'"];
+      result = [];
+      for (face = m = 0; m <= 5; face = ++m) {
+        for (power = o = 0; o <= 2; power = ++o) {
+          result.push(faceName[face] + powerName[power]);
+        }
+      }
+      return result;
+    })();
+    State = class State {
+      constructor(cube) {
+        this.parent = null;
+        this.lastMove = null;
+        this.depth = 0;
+        if (cube) {
+          this.init(cube);
+        }
+      }
+
+      init(cube) {
+        // Phase 1 coordinates
+        this.flip = cube.flip();
+        this.twist = cube.twist();
+        this.slice = cube.FRtoBR() / N_SLICE2 | 0;
+        // Phase 2 coordinates
+        this.parity = cube.cornerParity();
+        this.URFtoDLF = cube.URFtoDLF();
+        this.FRtoBR = cube.FRtoBR();
+        // These are later merged to URtoDF when phase 2 begins
+        this.URtoUL = cube.URtoUL();
+        this.UBtoDF = cube.UBtoDF();
+        return this;
+      }
+
+      solution() {
+        if (this.parent) {
+          return this.parent.solution() + moveNames[this.lastMove] + ' ';
+        } else {
+          return '';
+        }
+      }
+
+      //# Helpers
+      move(table, index, move) {
+        return Cube.moveTables[table][index][move];
+      }
+
+      pruning(table, index) {
+        return pruning(Cube.pruningTables[table], index);
+      }
+
+      //# Phase 1
+
+      // Return the next valid phase 1 moves for this state
+      moves1() {
+        if (this.lastMove !== null) {
+          return nextMoves1[this.lastMove / 3 | 0];
+        } else {
+          return allMoves1;
+        }
+      }
+
+      // Compute the minimum number of moves to the end of phase 1
+      minDist1() {
+        var d1, d2;
+        // The maximum number of moves to the end of phase 1 wrt. the
+        // combination flip and slice coordinates only
+        d1 = this.pruning('sliceFlip', N_SLICE1 * this.flip + this.slice);
+        // The combination of twist and slice coordinates
+        d2 = this.pruning('sliceTwist', N_SLICE1 * this.twist + this.slice);
+        // The true minimal distance is the maximum of these two
+        return max(d1, d2);
+      }
+
+      // Compute the next phase 1 state for the given move
+      next1(move) {
+        var next;
+        next = freeStates.pop();
+        next.parent = this;
+        next.lastMove = move;
+        next.depth = this.depth + 1;
+        next.flip = this.move('flip', this.flip, move);
+        next.twist = this.move('twist', this.twist, move);
+        next.slice = this.move('FRtoBR', this.slice * 24, move) / 24 | 0;
+        return next;
+      }
+
+      //# Phase 2
+
+      // Return the next valid phase 2 moves for this state
+      moves2() {
+        if (this.lastMove !== null) {
+          return nextMoves2[this.lastMove / 3 | 0];
+        } else {
+          return allMoves2;
+        }
+      }
+
+      // Compute the minimum number of moves to the solved cube
+      minDist2() {
+        var d1, d2, index1, index2;
+        index1 = (N_SLICE2 * this.URtoDF + this.FRtoBR) * N_PARITY + this.parity;
+        d1 = this.pruning('sliceURtoDFParity', index1);
+        index2 = (N_SLICE2 * this.URFtoDLF + this.FRtoBR) * N_PARITY + this.parity;
+        d2 = this.pruning('sliceURFtoDLFParity', index2);
+        return max(d1, d2);
+      }
+
+      // Initialize phase 2 coordinates
+      init2(top = true) {
+        if (this.parent === null) {
+          return;
+        }
+        // For other states, the phase 2 state is computed based on
+        // parent's state.
+        // Already assigned for the initial state
+        this.parent.init2(false);
+        this.URFtoDLF = this.move('URFtoDLF', this.parent.URFtoDLF, this.lastMove);
+        this.FRtoBR = this.move('FRtoBR', this.parent.FRtoBR, this.lastMove);
+        this.parity = this.move('parity', this.parent.parity, this.lastMove);
+        this.URtoUL = this.move('URtoUL', this.parent.URtoUL, this.lastMove);
+        this.UBtoDF = this.move('UBtoDF', this.parent.UBtoDF, this.lastMove);
+        if (top) {
+          // This is the initial phase 2 state. Get the URtoDF coordinate
+          // by merging URtoUL and UBtoDF
+          return this.URtoDF = this.move('mergeURtoDF', this.URtoUL, this.UBtoDF);
+        }
+      }
+
+      // Compute the next phase 2 state for the given move
+      next2(move) {
+        var next;
+        next = freeStates.pop();
+        next.parent = this;
+        next.lastMove = move;
+        next.depth = this.depth + 1;
+        next.URFtoDLF = this.move('URFtoDLF', this.URFtoDLF, move);
+        next.FRtoBR = this.move('FRtoBR', this.FRtoBR, move);
+        next.parity = this.move('parity', this.parity, move);
+        next.URtoDF = this.move('URtoDF', this.URtoDF, move);
+        return next;
+      }
+
+    };
+    solution = null;
+    phase1search = function(state) {
+      var depth, m, ref, results;
+      depth = 0;
+      results = [];
+      for (depth = m = 1, ref = maxDepth; (1 <= ref ? m <= ref : m >= ref); depth = 1 <= ref ? ++m : --m) {
+        phase1(state, depth);
+        if (solution !== null) {
+          break;
+        }
+        results.push(depth++);
+      }
+      return results;
+    };
+    phase1 = function(state, depth) {
+      var len, m, move, next, ref, ref1, results;
+      if (depth === 0) {
+        if (state.minDist1() === 0) {
+          // Make sure we don't start phase 2 with a phase 2 move as the
+          // last move in phase 1, because phase 2 would then repeat the
+          // same move.
+          if (state.lastMove === null || (ref = state.lastMove, indexOf.call(allMoves2, ref) < 0)) {
+            return phase2search(state);
+          }
+        }
+      } else if (depth > 0) {
+        if (state.minDist1() <= depth) {
+          ref1 = state.moves1();
+          results = [];
+          for (m = 0, len = ref1.length; m < len; m++) {
+            move = ref1[m];
+            next = state.next1(move);
+            phase1(next, depth - 1);
+            freeStates.push(next);
+            if (solution !== null) {
+              break;
+            } else {
+              results.push(void 0);
+            }
+          }
+          return results;
+        }
+      }
+    };
+    phase2search = function(state) {
+      var depth, m, ref, results;
+      // Initialize phase 2 coordinates
+      state.init2();
+      results = [];
+      for (depth = m = 1, ref = maxDepth - state.depth; (1 <= ref ? m <= ref : m >= ref); depth = 1 <= ref ? ++m : --m) {
+        phase2(state, depth);
+        if (solution !== null) {
+          break;
+        }
+        results.push(depth++);
+      }
+      return results;
+    };
+    phase2 = function(state, depth) {
+      var len, m, move, next, ref, results;
+      if (depth === 0) {
+        if (state.minDist2() === 0) {
+          return solution = state.solution();
+        }
+      } else if (depth > 0) {
+        if (state.minDist2() <= depth) {
+          ref = state.moves2();
+          results = [];
+          for (m = 0, len = ref.length; m < len; m++) {
+            move = ref[m];
+            next = state.next2(move);
+            phase2(next, depth - 1);
+            freeStates.push(next);
+            if (solution !== null) {
+              break;
+            } else {
+              results.push(void 0);
+            }
+          }
+          return results;
+        }
+      }
+    };
+    freeStates = (function() {
+      var m, ref, results;
+      results = [];
+      for (x = m = 0, ref = maxDepth + 1; (0 <= ref ? m <= ref : m >= ref); x = 0 <= ref ? ++m : --m) {
+        results.push(new State);
+      }
+      return results;
+    })();
+    state = freeStates.pop().init(this);
+    phase1search(state);
+    freeStates.push(state);
+    // Trim the trailing space
+    if (solution.length > 0) {
+      solution = solution.substring(0, solution.length - 1);
+    }
+    return solution;
+  };
+
+  faceNums = {
+    U: 0,
+    R: 1,
+    F: 2,
+    D: 3,
+    L: 4,
+    B: 5
+  };
+
+  faceNames = {
+    0: 'U',
+    1: 'R',
+    2: 'F',
+    3: 'D',
+    4: 'L',
+    5: 'B'
+  };
+
+  Cube.prototype.solve = function(maxDepth = 22) {
+    var clone, len, m, move, ref, rotation, solution, upright, uprightSolution;
+    clone = this.clone();
+    upright = clone.upright();
+    clone.move(upright);
+    rotation = new Cube().move(upright).center;
+    uprightSolution = clone.solveUpright(maxDepth);
+    solution = [];
+    ref = uprightSolution.split(' ');
+    for (m = 0, len = ref.length; m < len; m++) {
+      move = ref[m];
+      solution.push(faceNames[rotation[faceNums[move[0]]]]);
+      if (move.length > 1) {
+        solution[solution.length - 1] += move[1];
+      }
+    }
+    return solution.join(' ');
+  };
+
+  Cube.scramble = function() {
+    return Cube.inverse(Cube.random().solve());
+  };
+
+}).call(this);
+
+</script>
+
+<script>
+/* ============================================================
+   CUBELAB — interactive 3D Rubik's Cube
+   Three.js scene + drag controls + Kociemba two-phase solver
+   ============================================================ */
+
+(() => {
+  "use strict";
+
+  /* ------------------------------------------------------------
+     tiny helpers
+     ------------------------------------------------------------ */
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const easeInOutCubic = (t) =>
+    t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const escapeHtml = (value) =>
+    String(value).replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[ch]));
+
+  const displayMove = (move) => move.replace(/'/g, "′").replace(/2/g, "2");
+
+  function formatTime(ms) {
+    const safe = Math.max(0, Math.round(ms));
+    const minutes = Math.floor(safe / 60000);
+    const seconds = Math.floor((safe % 60000) / 1000);
+    const tenths = Math.floor((safe % 1000) / 100);
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
+  }
+
+  function fatal(title, detail) {
+    const layer = document.createElement("div");
+    layer.className = "fatal";
+    layer.innerHTML = `<div class="fatal-card"><h1>${escapeHtml(title)}</h1><p>${detail}</p></div>`;
+    document.body.appendChild(layer);
+  }
+
+  if (!window.THREE) {
+    fatal(
+      "Could not load Three.js",
+      "The 3D engine is loaded from a CDN. Check your internet connection and reload the page. The app itself is a single HTML file, but Three.js is fetched once from jsDelivr."
+    );
+    return;
+  }
+  if (!window.Cube) {
+    fatal(
+      "Could not load the cube solver",
+      "The embedded cube.js model did not initialize. Try reloading the page, or open the browser console for details."
+    );
+    return;
+  }
+  if (!THREE.OrbitControls) {
+    fatal(
+      "Could not load camera controls",
+      "Three.js loaded, but OrbitControls did not. Check your internet connection and reload the page."
+    );
+    return;
+  }
+
+  /* ------------------------------------------------------------
+     constants
+     ------------------------------------------------------------ */
+
+  const FACE_COLORS = {
+    U: 0xffffff,
+    R: 0xc4162b,
+    F: 0x009e3a,
+    D: 0xffc400,
+    L: 0xff6a00,
+    B: 0x1d4ed8,
+  };
+
+  const FACE_NORMALS = {
+    U: new THREE.Vector3(0, 1, 0),
+    R: new THREE.Vector3(1, 0, 0),
+    F: new THREE.Vector3(0, 0, 1),
+    D: new THREE.Vector3(0, -1, 0),
+    L: new THREE.Vector3(-1, 0, 0),
+    B: new THREE.Vector3(0, 0, -1),
+  };
+
+  const FACE_OFFSETS = { U: 0, R: 9, F: 18, D: 27, L: 36, B: 45 };
+  const Z_AXIS = new THREE.Vector3(0, 0, 1);
+  const AXIS_VECTORS = {
+    x: new THREE.Vector3(1, 0, 0),
+    y: new THREE.Vector3(0, 1, 0),
+    z: new THREE.Vector3(0, 0, 1),
+  };
+
+  // Canonical quarter-turn angles, derived from the standard cubie
+  // permutations used by cube.js (and Kociemba's convention).
+  const MOVE_DEFS = {
+    R: { axis: "x", layer: 1, angle: -Math.PI / 2 },
+    L: { axis: "x", layer: -1, angle: Math.PI / 2 },
+    U: { axis: "y", layer: 1, angle: -Math.PI / 2 },
+    D: { axis: "y", layer: -1, angle: Math.PI / 2 },
+    F: { axis: "z", layer: 1, angle: -Math.PI / 2 },
+    B: { axis: "z", layer: -1, angle: Math.PI / 2 },
+    M: { axis: "x", layer: 0, angle: Math.PI / 2 },
+    E: { axis: "y", layer: 0, angle: Math.PI / 2 },
+    S: { axis: "z", layer: 0, angle: -Math.PI / 2 },
+  };
+
+  // For a positive rotation about the given axis and layer, which move
+  // is canonical, and is the positive direction the unprimed one?
+  const AXIS_MOVES = {
+    x: { "1": ["R", -1], "-1": ["L", 1], "0": ["M", 1] },
+    y: { "1": ["U", -1], "-1": ["D", 1], "0": ["E", 1] },
+    z: { "1": ["F", -1], "-1": ["B", 1], "0": ["S", -1] },
+  };
+
+  const FACE_KEYS = ["U", "D", "L", "R", "F", "B"];
+  const BEST_KEY = "cubelab.best.v1";
+  const SOUND_KEY = "cubelab.sound.v1";
+  const SPEED_KEY = "cubelab.speed.v1";
+
+  const isCompact = () => window.matchMedia("(max-width: 720px)").matches;
+  const prefersReducedMotion = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ------------------------------------------------------------
+     persistent preferences
+     ------------------------------------------------------------ */
+
+  function readJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function writeJSON(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* storage may be unavailable under file:// or private mode */
+    }
+  }
+
+  function loadBest() {
+    const value = readJSON(BEST_KEY, null);
+    if (value && Number.isFinite(value.ms) && value.ms > 0) return value;
+    return null;
+  }
+
+  const storedSound = readJSON(SOUND_KEY, true);
+  const storedSpeed = Number(readJSON(SPEED_KEY, 330));
+
+  /* ------------------------------------------------------------
+     application state
+     ------------------------------------------------------------ */
+
+  const state = {
+    cube: new Cube(),
+    history: [],
+    moveCount: 0,
+    timer: { start: 0, elapsed: 0, running: false },
+    mode: "idle", // idle | scrambling | solving | solved | undo
+    speed: [150, 330, 650].includes(storedSpeed) ? storedSpeed : 330,
+    sound: storedSound !== false,
+    paused: false,
+    started: false,
+    scrambled: false,
+    assisted: false,
+    celebrating: false,
+    session: 0,
+    solution: [],
+    solutionIndex: 0,
+    best: loadBest(),
+    solverReady: false,
+  };
+
+  /* ------------------------------------------------------------
+     DOM references
+     ------------------------------------------------------------ */
+
+  const canvas = $("#stage");
+  const statusPill = $("#statusPill");
+  const statusText = $("#statusText");
+  const stateLabel = $("#stateLabel");
+  const timerEl = $("#timer");
+  const moveCountEl = $("#moveCount");
+  const bestTimeEl = $("#bestTime");
+  const historyList = $("#historyList");
+  const historyCount = $("#historyCount");
+  const copyBtn = $("#copyBtn");
+  const banner = $("#banner");
+  const bannerKicker = $("#bannerKicker");
+  const bannerMove = $("#bannerMove");
+  const bannerSub = $("#bannerSub");
+  const bannerBar = $("#bannerBar");
+  const facePad = $("#facePad");
+  const scrambleBtn = $("#scrambleBtn");
+  const solveBtn = $("#solveBtn");
+  const undoBtn = $("#undoBtn");
+  const resetBtn = $("#resetBtn");
+  const pauseBtn = $("#pauseBtn");
+  const pauseText = $("#pauseText");
+  const soundBtn = $("#soundBtn");
+  const soundOnIcon = $("#soundOnIcon");
+  const soundOffIcon = $("#soundOffIcon");
+  const helpBtn = $("#helpBtn");
+  const toastEl = $("#toast");
+  const victoryModal = $("#victory");
+  const victorySub = $("#victorySub");
+  const victoryTime = $("#victoryTime");
+  const victoryMoves = $("#victoryMoves");
+  const victoryBest = $("#victoryBest");
+  const victoryReset = $("#victoryReset");
+  const victoryScramble = $("#victoryScramble");
+  const helpModal = $("#help");
+  const solverLayer = $("#solverLayer");
+  const solverSub = $("#solverSub");
+
+  const faceButtons = $$(".move-btn", facePad);
+  const speedButtons = $$(".speed-btn");
+
+  /* ------------------------------------------------------------
+     audio — synthesized mechanical clicks, no assets
+     ------------------------------------------------------------ */
+
+  const Sound = (() => {
+    let ctx = null;
+    let noiseBuffer = null;
+
+    const FACE_PITCH = { U: 7, R: 5, F: 3, D: 0, L: 2, B: 4, M: 1, E: 6, S: 8 };
+
+    function ensure() {
+      if (!state.sound) return null;
+      try {
+        if (!ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return null;
+          ctx = new AudioCtx();
+        }
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+        return ctx;
+      } catch {
+        return null;
+      }
+    }
+
+    function getNoise() {
+      if (!ctx) return null;
+      if (noiseBuffer) return noiseBuffer;
+      const length = Math.floor(ctx.sampleRate * 0.09);
+      noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < length; i++) {
+        const env = Math.pow(1 - i / length, 3.2);
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      return noiseBuffer;
+    }
+
+    function click(face, volume = 1) {
+      if (!state.sound) return;
+      const audio = ensure();
+      if (!audio) return;
+      try {
+        const t = audio.currentTime;
+        const pitch = FACE_PITCH[face] ?? 4;
+        const out = audio.createGain();
+        out.gain.value = 0.5 * volume;
+        out.connect(audio.destination);
+
+        // sharp plastic tick
+        const noise = audio.createBufferSource();
+        noise.buffer = getNoise();
+        const band = audio.createBiquadFilter();
+        band.type = "bandpass";
+        band.frequency.value = 1650 + pitch * 95;
+        band.Q.value = 1.15;
+        const ng = audio.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        ng.gain.exponentialRampToValueAtTime(0.22 * volume, t + 0.004);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+        noise.connect(band).connect(ng).connect(out);
+        noise.start(t);
+        noise.stop(t + 0.1);
+
+        // low mechanical body
+        const osc = audio.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(155 + pitch * 14, t);
+        osc.frequency.exponentialRampToValueAtTime(72, t + 0.075);
+        const og = audio.createGain();
+        og.gain.setValueAtTime(0.0001, t);
+        og.gain.exponentialRampToValueAtTime(0.11 * volume, t + 0.006);
+        og.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+        osc.connect(og).connect(out);
+        osc.start(t);
+        osc.stop(t + 0.12);
+      } catch {
+        /* audio is a nice-to-have */
+      }
+    }
+
+    function chime() {
+      if (!state.sound) return;
+      const audio = ensure();
+      if (!audio) return;
+      try {
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+        notes.forEach((freq, index) => {
+          const t = audio.currentTime + index * 0.085;
+          const osc = audio.createOscillator();
+          const gain = audio.createGain();
+          osc.type = index < 3 ? "triangle" : "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, t);
+          gain.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+          osc.connect(gain).connect(audio.destination);
+          osc.start(t);
+          osc.stop(t + 0.75);
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+
+    return { ensure, click, chime };
+  })();
+
+  /* ------------------------------------------------------------
+     three.js scene
+     ------------------------------------------------------------ */
+
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+  } catch (error) {
+    fatal(
+      "WebGL is unavailable",
+      "This browser could not create a WebGL context. Try enabling hardware acceleration, updating your browser, or opening the page in a recent version of Chrome, Safari, Firefox, or Edge."
+    );
+    console.error(error);
+    return;
+  }
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCompact() ? 1.75 : 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.98;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(
+    39,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    120
+  );
+  const CAMERA_HOME = new THREE.Vector3(6.2, 5.5, 8.3);
+  const CAMERA_TARGET = new THREE.Vector3(0, -0.1, 0);
+  camera.position.copy(CAMERA_HOME);
+
+  function makeEnvironment() {
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 512;
+    const ctx = c.getContext("2d");
+    const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+    gradient.addColorStop(0, "#314766");
+    gradient.addColorStop(0.42, "#101724");
+    gradient.addColorStop(1, "#05070b");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    const blobs = [
+      [190, 120, 190, "rgba(150, 225, 255, 0.52)"],
+      [820, 150, 170, "rgba(255, 214, 170, 0.34)"],
+      [520, 340, 250, "rgba(105, 130, 255, 0.14)"],
+      [70, 390, 160, "rgba(80, 240, 210, 0.1)"],
+    ];
+    for (const [x, y, radius, color] of blobs) {
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      glow.addColorStop(0, color);
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+
+    const texture = new THREE.CanvasTexture(c);
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.encoding = THREE.sRGBEncoding;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const env = pmrem.fromEquirectangular(texture).texture;
+    texture.dispose();
+    pmrem.dispose();
+    scene.environment = env;
+  }
+
+  try {
+    makeEnvironment();
+  } catch (error) {
+    // Environment reflections are optional; keep going with lights only.
+    console.warn("Environment map unavailable", error);
+  }
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+  scene.add(new THREE.HemisphereLight(0xa8d8ff, 0x24140b, 0.3));
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.95);
+  keyLight.position.set(6.5, 9.5, 7.5);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.left = -7;
+  keyLight.shadow.camera.right = 7;
+  keyLight.shadow.camera.top = 7;
+  keyLight.shadow.camera.bottom = -7;
+  keyLight.shadow.camera.near = 1;
+  keyLight.shadow.camera.far = 32;
+  keyLight.shadow.bias = -0.0006;
+  keyLight.shadow.normalBias = 0.02;
+  keyLight.shadow.radius = 4;
+  scene.add(keyLight);
+
+  const fillLight = new THREE.DirectionalLight(0x8fb9ff, 0.38);
+  fillLight.position.set(-7.5, 4.5, -4.5);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.DirectionalLight(0xffd8a8, 0.3);
+  rimLight.position.set(0, -5.5, 4.5);
+  scene.add(rimLight);
+
+  // soft contact shadow catcher
+  const shadowFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 40),
+    new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.3 })
+  );
+  shadowFloor.rotation.x = -Math.PI / 2;
+  shadowFloor.position.y = -2.18;
+  shadowFloor.receiveShadow = true;
+  scene.add(shadowFloor);
+
+  function makeGlowTexture() {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 512;
+    const ctx = c.getContext("2d");
+    const gradient = ctx.createRadialGradient(256, 256, 10, 256, 256, 250);
+    gradient.addColorStop(0, "rgba(74, 150, 255, 0.28)");
+    gradient.addColorStop(0.4, "rgba(34, 211, 238, 0.1)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+    const texture = new THREE.CanvasTexture(c);
+    texture.encoding = THREE.sRGBEncoding;
+    return texture;
+  }
+
+  const glowPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(13, 13),
+    new THREE.MeshBasicMaterial({
+      map: makeGlowTexture(),
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+  glowPlane.rotation.x = -Math.PI / 2;
+  glowPlane.position.y = -2.19;
+  glowPlane.renderOrder = -1;
+  scene.add(glowPlane);
+
+  const controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.075;
+  controls.enablePan = false;
+  controls.rotateSpeed = 0.82;
+  controls.zoomSpeed = 0.86;
+  controls.minDistance = 5.6;
+  controls.maxDistance = 24;
+  controls.minPolarAngle = 0.1;
+  controls.maxPolarAngle = Math.PI - 0.1;
+  controls.target.copy(CAMERA_TARGET);
+
+  let userMovedCamera = false;
+  controls.addEventListener("start", () => {
+    userMovedCamera = true;
+  });
+
+  function fitCamera() {
+    if (userMovedCamera) return;
+    const aspect = window.innerWidth / window.innerHeight;
+    let scale = 1;
+    if (aspect < 0.55) scale = 1.42;
+    else if (aspect < 0.8) scale = 1.28;
+    else if (aspect < 1.05) scale = 1.12;
+    const distance = CAMERA_HOME.length() * scale;
+    camera.position
+      .copy(CAMERA_TARGET)
+      .addScaledVector(CAMERA_HOME.clone().normalize(), distance);
+    controls.target.copy(CAMERA_TARGET);
+    controls.update();
+    controls.saveState();
+  }
+
+  fitCamera();
+
+  /* ------------------------------------------------------------
+     cube geometry
+     ------------------------------------------------------------ */
+
+  const cubeGroup = new THREE.Group();
+  scene.add(cubeGroup);
+
+  const bodyGeometry = THREE.RoundedBoxGeometry
+    ? new THREE.RoundedBoxGeometry(0.96, 0.96, 0.96, 4, 0.045)
+    : new THREE.BoxGeometry(0.96, 0.96, 0.96);
+
+  const bodyMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x06080d,
+    roughness: 0.28,
+    metalness: 0.58,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.22,
+    envMapIntensity: 1.25,
+  });
+
+  function roundedRectShape(width, height, radius) {
+    const shape = new THREE.Shape();
+    const x = -width / 2;
+    const y = -height / 2;
+    const r = Math.min(radius, width / 2, height / 2);
+    shape.moveTo(x + r, y);
+    shape.lineTo(x + width - r, y);
+    shape.quadraticCurveTo(x + width, y, x + width, y + r);
+    shape.lineTo(x + width, y + height - r);
+    shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    shape.lineTo(x + r, y + height);
+    shape.quadraticCurveTo(x, y + height, x, y + height - r);
+    shape.lineTo(x, y + r);
+    shape.quadraticCurveTo(x, y, x + r, y);
+    return shape;
+  }
+
+  const stickerGeometry = new THREE.ShapeGeometry(roundedRectShape(0.88, 0.88, 0.11), 6);
+
+  const stickerMaterials = {};
+  for (const face of FACE_KEYS) {
+    const color = new THREE.Color(FACE_COLORS[face]);
+    stickerMaterials[face] = new THREE.MeshPhysicalMaterial({
+      color,
+      roughness: 0.25,
+      metalness: 0.03,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 0.78,
+      emissive: color.clone().multiplyScalar(0.02),
+    });
+  }
+
+  const cubelets = [];
+  const bodyMeshes = [];
+  const stickerMeshes = [];
+
+  // A dark core so the gaps never show the background through the cube.
+  const core = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.98, 0.98), bodyMaterial);
+  core.castShadow = false;
+  core.receiveShadow = false;
+  cubeGroup.add(core);
+
+  for (let x = -1; x <= 1; x++) {
+    for (let y = -1; y <= 1; y++) {
+      for (let z = -1; z <= 1; z++) {
+        if (x === 0 && y === 0 && z === 0) continue;
+
+        const group = new THREE.Group();
+        group.position.set(x, y, z);
+        group.userData.home = new THREE.Vector3(x, y, z);
+
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        body.userData.cubelet = group;
+        group.add(body);
+        bodyMeshes.push(body);
+
+        const faces = [];
+        if (y === 1) faces.push("U");
+        if (y === -1) faces.push("D");
+        if (x === 1) faces.push("R");
+        if (x === -1) faces.push("L");
+        if (z === 1) faces.push("F");
+        if (z === -1) faces.push("B");
+
+        for (const face of faces) {
+          const normal = FACE_NORMALS[face];
+          const sticker = new THREE.Mesh(stickerGeometry, stickerMaterials[face]);
+          sticker.position.copy(normal).multiplyScalar(0.4815);
+          sticker.quaternion.setFromUnitVectors(Z_AXIS, normal);
+          sticker.userData = {
+            color: face,
+            normal: normal.clone(),
+            cubelet: group,
+          };
+          group.add(sticker);
+          stickerMeshes.push(sticker);
+        }
+
+        cubeGroup.add(group);
+        cubelets.push(group);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------
+     visual <-> logical sync (also used by the self-test)
+     ------------------------------------------------------------ */
+
+  function stickerFacelet(sticker) {
+    const cubelet = sticker.userData.cubelet;
+    const normal = sticker.userData.normal
+      .clone()
+      .applyQuaternion(cubelet.quaternion);
+    const x = Math.round(cubelet.position.x);
+    const y = Math.round(cubelet.position.y);
+    const z = Math.round(cubelet.position.z);
+
+    if (Math.abs(normal.y) > 0.5) {
+      if (normal.y > 0) return { face: "U", row: z + 1, col: x + 1 };
+      return { face: "D", row: 1 - z, col: x + 1 };
+    }
+    if (Math.abs(normal.x) > 0.5) {
+      if (normal.x > 0) return { face: "R", row: 1 - y, col: 1 - z };
+      return { face: "L", row: 1 - y, col: z + 1 };
+    }
+    if (normal.z > 0) return { face: "F", row: 1 - y, col: x + 1 };
+    return { face: "B", row: 1 - y, col: 1 - x };
+  }
+
+  function getVisualFacelets() {
+    const out = new Array(54).fill("?");
+    for (const sticker of stickerMeshes) {
+      const { face, row, col } = stickerFacelet(sticker);
+      out[FACE_OFFSETS[face] + row * 3 + col] = sticker.userData.color;
+    }
+    return out.join("");
+  }
+
+  function checkSync() {
+    return getVisualFacelets() === state.cube.asString();
+  }
+
+  function isVisuallySolved() {
+    const facelets = getVisualFacelets();
+    for (let face = 0; face < 6; face++) {
+      const slice = facelets.slice(face * 9, face * 9 + 9);
+      if (!slice.split("").every((color) => color === slice[0])) return false;
+    }
+    return true;
+  }
+
+  /* ------------------------------------------------------------
+     timer + stats
+     ------------------------------------------------------------ */
+
+  function timerMs() {
+    return state.timer.running
+      ? performance.now() - state.timer.start
+      : state.timer.elapsed;
+  }
+
+  function startTimer() {
+    if (state.timer.running) return;
+    state.timer.start = performance.now() - state.timer.elapsed;
+    state.timer.running = true;
+  }
+
+  function stopTimer() {
+    if (!state.timer.running) return;
+    state.timer.elapsed = performance.now() - state.timer.start;
+    state.timer.running = false;
+    updateTimerDisplay();
+  }
+
+  function resetTimer() {
+    state.timer.running = false;
+    state.timer.start = 0;
+    state.timer.elapsed = 0;
+    updateTimerDisplay();
+  }
+
+  function updateTimerDisplay() {
+    timerEl.textContent = formatTime(timerMs());
+  }
+
+  function updateBestDisplay() {
+    bestTimeEl.textContent = state.best ? formatTime(state.best.ms) : "—";
+  }
+
+  function saveBest(ms, moves) {
+    if (!state.best || ms < state.best.ms) {
+      state.best = { ms, moves, date: new Date().toISOString() };
+      writeJSON(BEST_KEY, state.best);
+      updateBestDisplay();
+      return true;
+    }
+    return false;
+  }
+
+  setInterval(() => {
+    if (state.timer.running) updateTimerDisplay();
+  }, 47);
+
+  function updateStats() {
+    moveCountEl.textContent = String(state.moveCount);
+    historyCount.textContent = String(state.history.length);
+    updateTimerDisplay();
+    updateBestDisplay();
+  }
+
+  function setStatus(text, tone) {
+    statusText.textContent = text;
+    statusPill.dataset.tone = tone;
+    const label =
+      text === "Ready"
+        ? "Solved"
+        : text === "In Play"
+          ? "Scrambled"
+          : text;
+    stateLabel.textContent = label;
+  }
+
+  function refreshStatus() {
+    if (state.mode === "scrambling") {
+      setStatus("Scrambling", "scramble");
+      return;
+    }
+    if (state.mode === "solving") {
+      setStatus(state.paused ? "Paused" : "Solving", state.paused ? "scramble" : "solve");
+      return;
+    }
+    if (state.mode === "solved" || state.celebrating) {
+      setStatus("Solved", "solved");
+      return;
+    }
+    if (state.scrambled && !state.started) {
+      setStatus("Scrambled", "scramble");
+      return;
+    }
+    if (state.started) {
+      setStatus("In Play", "ready");
+      return;
+    }
+    setStatus("Ready", "ready");
+  }
+
+  /* ------------------------------------------------------------
+     move history
+     ------------------------------------------------------------ */
+
+  function baseFace(move) {
+    return move[0] || "U";
+  }
+
+  function renderHistory() {
+    historyCount.textContent = String(state.history.length);
+    if (!state.history.length) {
+      historyList.innerHTML =
+        '<span class="history-empty">Your moves will appear here. Drag a sticker or use the dock below.</span>';
+      return;
+    }
+    const visible = state.history.slice(-240);
+    const prefix =
+      state.history.length > visible.length
+        ? '<span class="history-empty">…</span>'
+        : "";
+    historyList.innerHTML =
+      prefix +
+      visible
+        .map((entry) => {
+          const face = baseFace(entry.move);
+          const source = entry.source === "solver" ? " source-solver" : " source-user";
+          return `<span class="move-chip f-${escapeHtml(face)}${source}" title="${escapeHtml(
+            entry.source === "solver" ? "Solver move" : "Your move"
+          )}">${escapeHtml(displayMove(entry.move))}</span>`;
+        })
+        .join("");
+    historyList.scrollTop = historyList.scrollHeight;
+  }
+
+  function recordMove(move, source) {
+    state.history.push({ move, source });
+    state.moveCount++;
+    state.started = true;
+    state.scrambled = true;
+    if (!state.timer.running && source !== "scramble") startTimer();
+    updateStats();
+    renderHistory();
+    refreshStatus();
+    setButtons();
+  }
+
+  function invertMove(move) {
+    const base = move[0];
+    const mod = move.slice(1);
+    if (mod === "") return base + "'";
+    if (mod === "'") return base;
+    return base + "2";
+  }
+
+  /* ------------------------------------------------------------
+     turn animation + queue
+     ------------------------------------------------------------ */
+
+  let queue = [];
+  let isAnimating = false;
+  let epoch = 0;
+  let currentTurn = null;
+
+  function parseMove(move) {
+    const base = move[0];
+    const mod = move.slice(1);
+    const def = MOVE_DEFS[base];
+    if (!def || (mod !== "" && mod !== "'" && mod !== "2")) {
+      throw new Error(`Unknown move: ${move}`);
+    }
+    const factor = mod === "'" ? -1 : mod === "2" ? 2 : 1;
+    return {
+      base,
+      mod,
+      axis: def.axis,
+      layer: def.layer,
+      angle: def.angle * factor,
+    };
+  }
+
+  function performMove(move, options = {}) {
+    return new Promise((resolve) => {
+      queue.push({
+        move,
+        options,
+        resolve,
+        token: epoch,
+      });
+      pump();
+      setButtons();
+    });
+  }
+
+  function pump() {
+    if (isAnimating) return;
+    const item = queue.shift();
+    if (!item) return;
+    if (item.token !== epoch) {
+      item.resolve({ cancelled: true });
+      pump();
+      return;
+    }
+    isAnimating = true;
+    startTurn(item);
+  }
+
+  function startTurn(item) {
+    const { move, options, resolve, token } = item;
+    let parsed;
+    try {
+      parsed = parseMove(move);
+    } catch (error) {
+      console.warn(error);
+      isAnimating = false;
+      resolve({ cancelled: true });
+      pump();
+      return;
+    }
+
+    const axisVector = AXIS_VECTORS[parsed.axis];
+    const selected = cubelets.filter(
+      (cubelet) => Math.round(cubelet.position[parsed.axis]) === parsed.layer
+    );
+    const starts = selected.map((cubelet) => ({
+      cubelet,
+      position: cubelet.position.clone(),
+      quaternion: cubelet.quaternion.clone(),
+    }));
+
+    const duration = Math.max(0, options.duration ?? 300);
+    const rotation = new THREE.Quaternion();
+    const startedAt = performance.now();
+    currentTurn = { move, parsed, starts, rotation, axisVector };
+
+    function applyAt(eased) {
+      rotation.setFromAxisAngle(axisVector, parsed.angle * eased);
+      for (const start of starts) {
+        start.cubelet.position.copy(start.position).applyQuaternion(rotation);
+        start.cubelet.quaternion.copy(rotation).multiply(start.quaternion);
+      }
+    }
+
+    function finish() {
+      rotation.setFromAxisAngle(axisVector, parsed.angle);
+      for (const start of starts) {
+        start.cubelet.position.copy(start.position).applyQuaternion(rotation);
+        start.cubelet.position.set(
+          Math.round(start.cubelet.position.x),
+          Math.round(start.cubelet.position.y),
+          Math.round(start.cubelet.position.z)
+        );
+        start.cubelet.quaternion
+          .copy(rotation)
+          .multiply(start.quaternion)
+          .normalize();
+      }
+
+      state.cube.move(move);
+
+      if (options.record !== false) {
+        recordMove(move, options.source || "user");
+      }
+
+      if (options.onComplete) {
+        try {
+          options.onComplete();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      Sound.click(parsed.base, options.soundVolume ?? 1);
+
+      if (options.checkSolved !== false) {
+        checkSolved(options.source || "user");
+      }
+
+      isAnimating = false;
+      currentTurn = null;
+      resolve({ cancelled: false });
+      pump();
+      setButtons();
+    }
+
+    function frame(now) {
+      if (token !== epoch) {
+        isAnimating = false;
+        currentTurn = null;
+        resolve({ cancelled: true });
+        pump();
+        return;
+      }
+      const progress = duration <= 0 ? 1 : clamp((now - startedAt) / duration, 0, 1);
+      applyAt(easeInOutCubic(progress));
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        finish();
+      }
+    }
+
+    if (duration <= 0) {
+      applyAt(1);
+      finish();
+    } else {
+      requestAnimationFrame(frame);
+    }
+  }
+
+  /* ------------------------------------------------------------
+     solved / victory
+     ------------------------------------------------------------ */
+
+  const confetti = [];
+  const confettiGeometry = new THREE.BoxGeometry(0.055, 0.012, 0.09);
+  const confettiColors = [
+    0x5ee7f5, 0x818cf8, 0xfbbf24, 0x34d399, 0xfb7185, 0xffffff, 0xff7a18,
+    0x2f6bff,
+  ].map((color) => new THREE.MeshBasicMaterial({ color }));
+
+  function clearConfetti() {
+    for (const particle of confetti) scene.remove(particle);
+    confetti.length = 0;
+  }
+
+  function spawnConfetti() {
+    clearConfetti();
+    const count = isCompact() ? 90 : 150;
+    for (let i = 0; i < count; i++) {
+      const particle = new THREE.Mesh(
+        confettiGeometry,
+        confettiColors[i % confettiColors.length]
+      );
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 1.1 + Math.random() * 1.7;
+      particle.position.set(
+        Math.cos(angle) * radius,
+        (Math.random() - 0.25) * 2.4,
+        Math.sin(angle) * radius
+      );
+      particle.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI
+      );
+      particle.userData.velocity = new THREE.Vector3(
+        Math.cos(angle) * (1.2 + Math.random() * 2.2),
+        2.2 + Math.random() * 3.8,
+        Math.sin(angle) * (1.2 + Math.random() * 2.2)
+      );
+      particle.userData.spin = new THREE.Vector3(
+        (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 14
+      );
+      particle.userData.life = 2.6 + Math.random() * 2;
+      particle.userData.age = 0;
+      scene.add(particle);
+      confetti.push(particle);
+    }
+  }
+
+  function updateConfetti(dt) {
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      const particle = confetti[i];
+      particle.userData.age += dt;
+      const life = particle.userData.life;
+      if (particle.userData.age >= life) {
+        scene.remove(particle);
+        confetti.splice(i, 1);
+        continue;
+      }
+      particle.userData.velocity.y -= 7.4 * dt;
+      particle.position.addScaledVector(particle.userData.velocity, dt);
+      particle.rotation.x += particle.userData.spin.x * dt;
+      particle.rotation.y += particle.userData.spin.y * dt;
+      particle.rotation.z += particle.userData.spin.z * dt;
+      const fade = Math.min(1, (life - particle.userData.age) / 0.55);
+      particle.scale.setScalar(fade);
+    }
+  }
+
+  let cameraOrbitTimer = 0;
+
+  function celebrateCamera() {
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 2.35;
+    clearTimeout(cameraOrbitTimer);
+    cameraOrbitTimer = setTimeout(() => {
+      controls.autoRotate = false;
+    }, 5200);
+  }
+
+  function showVictory(ms, assisted, isBest) {
+    victoryTime.textContent = formatTime(ms);
+    victoryMoves.textContent = String(state.moveCount);
+    victoryBest.textContent = state.best ? formatTime(state.best.ms) : "—";
+    if (isBest) {
+      victorySub.textContent = "New personal best. Every sticker is home.";
+    } else if (assisted) {
+      victorySub.textContent = `Solved with the two-phase solver in ${state.solution.length || state.moveCount} moves.`;
+    } else {
+      victorySub.textContent = "Every sticker is home. Beautifully done.";
+    }
+    openModal("victory");
+  }
+
+  function onSolved(source) {
+    if (state.celebrating) return;
+    state.celebrating = true;
+    state.mode = "solved";
+    stopTimer();
+    refreshStatus();
+    setButtons();
+
+    const ms = timerMs();
+    const assisted = source === "solver" || state.assisted;
+    let isBest = false;
+    if (!assisted && state.started && ms > 400 && state.moveCount > 0) {
+      isBest = saveBest(ms, state.moveCount);
+    }
+
+    Sound.chime();
+    spawnConfetti();
+    celebrateCamera();
+    hideBanner();
+
+    setTimeout(() => {
+      if (state.celebrating) showVictory(ms, assisted, isBest);
+    }, 700);
+  }
+
+  function checkSolved(source) {
+    if (source === "scramble") return;
+    if (!state.cube.isSolved()) return;
+    if (!state.started) return;
+    if (state.celebrating) return;
+    onSolved(source);
+  }
+
+  /* ------------------------------------------------------------
+     UI state
+     ------------------------------------------------------------ */
+
+  let toastTimer = 0;
+  let bannerTimer = 0;
+
+  function toast(message, duration = 2200) {
+    toastEl.textContent = message;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), duration);
+  }
+
+  function updateBanner({ kicker, move, sub, progress, show = true }) {
+    if (kicker !== undefined) bannerKicker.textContent = kicker;
+    if (move !== undefined) bannerMove.textContent = move;
+    if (sub !== undefined) bannerSub.textContent = sub;
+    if (progress !== undefined) {
+      bannerBar.style.width = `${clamp(progress, 0, 1) * 100}%`;
+    }
+    if (show) banner.classList.add("show");
+  }
+
+  function hideBanner() {
+    banner.classList.remove("show");
+    clearTimeout(bannerTimer);
+  }
+
+  function showBannerFor(duration) {
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => banner.classList.remove("show"), duration);
+  }
+
+  function updatePauseButton() {
+    pauseBtn.classList.toggle("show", state.mode === "solving");
+    pauseText.textContent = state.paused ? "Resume" : "Pause";
+    pauseBtn.setAttribute(
+      "aria-label",
+      state.paused ? "Resume solver playback" : "Pause solver playback"
+    );
+    const svg = pauseBtn.querySelector("svg");
+    if (svg) {
+      svg.innerHTML = state.paused
+        ? '<path d="M8 5v14l11-7z"/>'
+        : '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+    }
+  }
+
+  function setButtons() {
+    const solving = state.mode === "solving";
+    const scrambling = state.mode === "scrambling";
+    const lock = solving || scrambling;
+
+    for (const button of faceButtons) button.disabled = lock;
+
+    scrambleBtn.disabled = lock || isAnimating;
+    solveBtn.disabled = lock || isAnimating || state.cube.isSolved() || state.celebrating;
+    undoBtn.disabled = lock || isAnimating || state.history.length === 0;
+    resetBtn.disabled = false;
+    pauseBtn.disabled = !solving;
+
+    const solveLabel = solveBtn.querySelector("span");
+    if (solveLabel) solveLabel.textContent = solving ? "Solving…" : "Solve";
+    const scrambleLabel = scrambleBtn.querySelector("span");
+    if (scrambleLabel) scrambleLabel.textContent = scrambling ? "Scrambling…" : "Scramble";
+
+    updatePauseButton();
+  }
+
+  function setSpeed(ms) {
+    state.speed = ms;
+    writeJSON(SPEED_KEY, ms);
+    for (const button of speedButtons) {
+      button.classList.toggle("is-active", Number(button.dataset.speed) === ms);
+    }
+  }
+
+  function updateSoundButton() {
+    soundOnIcon.style.display = state.sound ? "" : "none";
+    soundOffIcon.style.display = state.sound ? "none" : "";
+    soundBtn.classList.toggle("is-off", !state.sound);
+    soundBtn.setAttribute("aria-label", state.sound ? "Mute sound" : "Enable sound");
+  }
+
+  function openModal(id) {
+    const modal = id === "victory" ? victoryModal : helpModal;
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.dataset.modal = id;
+  }
+
+  function closeModal(id) {
+    const modal = id === "victory" ? victoryModal : helpModal;
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+    if (id === "victory") {
+      state.celebrating = false;
+      controls.autoRotate = false;
+    }
+    if (!document.querySelector(".modal-layer.show")) delete document.body.dataset.modal;
+  }
+
+  function closeAllModals() {
+    closeModal("victory");
+    closeModal("help");
+  }
+
+  function showSolver(show) {
+    solverLayer.classList.toggle("show", show);
+    solverLayer.setAttribute("aria-hidden", show ? "false" : "true");
+  }
+
+  /* ------------------------------------------------------------
+     solver worker — keeps the UI responsive while Kociemba warms up
+     ------------------------------------------------------------ */
+
+  let solverWorker = null;
+  let solverWorkerFailed = false;
+
+  function initSolverWorker() {
+    if (solverWorker) return solverWorker;
+    if (solverWorkerFailed) return null;
+    if (!window.Worker || !window.Blob || !window.URL) return null;
+
+    const sourceElement = document.getElementById("vendor-source");
+    if (!sourceElement) return null;
+
+    try {
+      const bootstrap = `
+self.onmessage = function (event) {
+  var data = event.data || {};
+  try {
+    if (data.type === "init") {
+      Cube.initSolver();
+      self.postMessage({ type: "ready" });
+    } else if (data.type === "solve") {
+      var cube = Cube.fromString(data.state);
+      var solution = cube.solve();
+      self.postMessage({ type: "solution", id: data.id, solution: solution });
+    }
+  } catch (error) {
+    self.postMessage({
+      type: "error",
+      id: data.id,
+      message: String((error && error.message) || error)
+    });
+  }
+};
+`;
+      const blob = new Blob([sourceElement.textContent, bootstrap], {
+        type: "application/javascript",
+      });
+      const url = URL.createObjectURL(blob);
+      const worker = new Worker(url);
+      const pending = new Map();
+      let sequence = 0;
+
+      const ready = new Promise((resolve, reject) => {
+        const initTimer = setTimeout(
+          () => reject(new Error("Solver worker timed out during initialization")),
+          25000
+        );
+        worker.onmessage = (event) => {
+          const data = event.data || {};
+          if (data.type === "ready") {
+            clearTimeout(initTimer);
+            resolve();
+            return;
+          }
+          if (data.type === "solution") {
+            const job = pending.get(data.id);
+            if (job) {
+              pending.delete(data.id);
+              clearTimeout(job.timer);
+              job.resolve(data.solution);
+            }
+            return;
+          }
+          if (data.type === "error") {
+            const job = pending.get(data.id);
+            if (job) {
+              pending.delete(data.id);
+              clearTimeout(job.timer);
+              job.reject(new Error(data.message));
+            } else {
+              clearTimeout(initTimer);
+              reject(new Error(data.message));
+            }
+          }
+        };
+        worker.onerror = (event) => {
+          clearTimeout(initTimer);
+          reject(new Error(event.message || "Solver worker failed"));
+        };
+      });
+
+      ready.catch(() => {
+        solverWorkerFailed = true;
+        try {
+          worker.terminate();
+        } catch {
+          /* ignore */
+        }
+      });
+
+      const wrapper = {
+        ready,
+        solve(stateString) {
+          return new Promise((resolve, reject) => {
+            const id = ++sequence;
+            const timer = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error("Solver timed out"));
+            }, 15000);
+            pending.set(id, { resolve, reject, timer });
+            worker.postMessage({ type: "solve", state: stateString, id });
+          });
+        },
+        terminate() {
+          try {
+            worker.terminate();
+          } catch {
+            /* ignore */
+          }
+          URL.revokeObjectURL(url);
+        },
+      };
+
+      worker.postMessage({ type: "init" });
+      solverWorker = wrapper;
+      return wrapper;
+    } catch (error) {
+      console.warn("Solver worker unavailable; using main thread", error);
+      solverWorkerFailed = true;
+      return null;
+    }
+  }
+
+  async function computeSolution(onProgress) {
+    const worker = initSolverWorker();
+    if (worker) {
+      try {
+        onProgress("Warming up the two-phase solver…");
+        await worker.ready;
+        onProgress("Searching the solution space…");
+        return await worker.solve(state.cube.asString());
+      } catch (error) {
+        console.warn("Falling back to the main-thread solver", error);
+        solverWorkerFailed = true;
+        try {
+          worker.terminate();
+        } catch {
+          /* ignore */
+        }
+        solverWorker = null;
+      }
+    }
+
+    onProgress("Initializing the two-phase solver…");
+    await wait(60);
+    if (!state.solverReady) {
+      Cube.initSolver();
+      state.solverReady = true;
+    }
+    onProgress("Searching the solution space…");
+    await wait(30);
+    return state.cube.solve();
+  }
+
+  /* ------------------------------------------------------------
+     user moves, scramble, solve, undo, reset
+     ------------------------------------------------------------ */
+
+  function userMove(move) {
+    if (state.mode === "solving" || state.mode === "scrambling") return;
+    if (document.body.dataset.modal) return;
+    Sound.ensure();
+
+    if (state.mode === "solved" || state.celebrating) {
+      state.mode = "idle";
+      state.celebrating = false;
+      state.history = [];
+      state.moveCount = 0;
+      state.started = false;
+      state.scrambled = false;
+      state.assisted = false;
+      resetTimer();
+      renderHistory();
+      updateStats();
+      controls.autoRotate = false;
+      hideBanner();
+    }
+
+    performMove(move, {
+      record: true,
+      source: "user",
+      duration: prefersReducedMotion() ? 160 : 300,
+    }).then((result) => {
+      if (result.cancelled) return;
+      if (state.mode === "idle") refreshStatus();
+    });
+  }
+
+  function generateScramble(length = 20) {
+    const faces = ["U", "R", "F", "D", "L", "B"];
+    const modifiers = ["", "'", "2"];
+    const axisOf = { U: "y", D: "y", L: "x", R: "x", F: "z", B: "z" };
+    const moves = [];
+    let lastFace = "";
+    let lastAxis = "";
+    let beforeLastAxis = "";
+
+    while (moves.length < length) {
+      const face = faces[Math.floor(Math.random() * faces.length)];
+      const axis = axisOf[face];
+      if (face === lastFace) continue;
+      // Avoid U D U style redundancy: if the previous two moves share
+      // an axis, don't immediately use that axis again.
+      if (axis === lastAxis && lastAxis === beforeLastAxis) continue;
+      const modifier = modifiers[Math.floor(Math.random() * modifiers.length)];
+      moves.push(face + modifier);
+      beforeLastAxis = lastAxis;
+      lastAxis = axis;
+      lastFace = face;
+    }
+    return moves;
+  }
+
+  async function scramble() {
+    if (state.mode === "solving" || state.mode === "scrambling" || isAnimating) return;
+    Sound.ensure();
+    const session = ++state.session;
+    closeAllModals();
+    state.mode = "scrambling";
+    state.celebrating = false;
+    state.scrambled = false;
+    state.started = false;
+    state.assisted = false;
+    state.paused = false;
+    state.history = [];
+    state.moveCount = 0;
+    state.solution = [];
+    state.solutionIndex = 0;
+    resetTimer();
+    clearConfetti();
+    controls.autoRotate = false;
+    updateStats();
+    renderHistory();
+    refreshStatus();
+    setButtons();
+    hideBanner();
+
+    const moves = generateScramble(20);
+    const duration = prefersReducedMotion() ? 30 : 92;
+
+    for (let i = 0; i < moves.length; i++) {
+      if (session !== state.session) return;
+      updateBanner({
+        kicker: "SCRAMBLING",
+        move: displayMove(moves[i]),
+        sub: `${i + 1} of ${moves.length} · ${moves
+          .slice(Math.max(0, i - 2), i + 3)
+          .map(displayMove)
+          .join(" ")}`,
+        progress: (i + 1) / moves.length,
+      });
+      await performMove(moves[i], {
+        record: false,
+        source: "scramble",
+        duration,
+        checkSolved: false,
+        soundVolume: 0.55,
+      });
+    }
+
+    if (session !== state.session) return;
+    state.mode = "idle";
+    state.scrambled = true;
+    state.started = false;
+    state.moveCount = 0;
+    state.history = [];
+    resetTimer();
+    updateStats();
+    renderHistory();
+    refreshStatus();
+    setButtons();
+    updateBanner({
+      kicker: "SCRAMBLE",
+      move: `${moves.length} moves`,
+      sub: moves.map(displayMove).join(" "),
+      progress: 1,
+    });
+    showBannerFor(6500);
+  }
+
+  function updateSolveBanner(index, moves) {
+    const current = moves[index] || "";
+    const upcoming = moves.slice(index + 1, index + 5).map(displayMove).join(" ");
+    updateBanner({
+      kicker: state.paused ? "PAUSED" : `SOLVING · ${index + 1}/${moves.length}`,
+      move: displayMove(current),
+      sub: state.paused
+        ? "Playback paused — press Space or Resume"
+        : upcoming
+          ? `Next: ${upcoming}`
+          : "Final move",
+      progress: (index + 1) / moves.length,
+    });
+  }
+
+  async function solveCube() {
+    if (state.mode === "solving" || state.mode === "scrambling" || isAnimating) return;
+    if (state.cube.isSolved()) {
+      toast("The cube is already solved.");
+      return;
+    }
+    if (typeof Cube.initSolver !== "function") {
+      toast("The solver is unavailable in this browser.");
+      return;
+    }
+
+    Sound.ensure();
+    const session = ++state.session;
+    closeModal("victory");
+    state.mode = "solving";
+    state.celebrating = false;
+    state.paused = false;
+    state.assisted = true;
+    refreshStatus();
+    setButtons();
+    showSolver(true);
+    solverSub.textContent = "Initializing the two-phase solver…";
+    await wait(70);
+
+    try {
+      const solution = await computeSolution((message) => {
+        solverSub.textContent = message;
+      });
+      if (session !== state.session) return;
+      const moves = solution.trim() ? solution.trim().split(/\s+/) : [];
+      showSolver(false);
+
+      if (!moves.length) {
+        if (state.cube.isSolved()) onSolved("solver");
+        else toast("No solution found. Try resetting the cube.");
+        state.mode = state.cube.isSolved() ? "solved" : "idle";
+        refreshStatus();
+        setButtons();
+        return;
+      }
+
+      state.solution = moves;
+      state.solutionIndex = 0;
+      if (!state.started) {
+        state.started = true;
+        startTimer();
+      }
+      refreshStatus();
+      setButtons();
+
+      for (let i = 0; i < moves.length; i++) {
+        if (session !== state.session) return;
+        while (state.paused && session === state.session) {
+          await wait(80);
+        }
+        if (session !== state.session) return;
+        state.solutionIndex = i;
+        updateSolveBanner(i, moves);
+        await performMove(moves[i], {
+          record: true,
+          source: "solver",
+          duration: state.speed,
+        });
+        if (session !== state.session) return;
+        if (state.celebrating) break;
+      }
+
+      if (session !== state.session) return;
+      if (state.cube.isSolved()) {
+        if (!state.celebrating) onSolved("solver");
+      } else {
+        state.mode = "idle";
+        toast("Playback finished.");
+        showBannerFor(2600);
+      }
+      refreshStatus();
+      setButtons();
+    } catch (error) {
+      console.error(error);
+      if (session === state.session) showSolver(false);
+      state.mode = "idle";
+      refreshStatus();
+      setButtons();
+      toast("The solver hit an unexpected state. Try Reset.");
+    } finally {
+      if (session === state.session) {
+        showSolver(false);
+        if (state.mode === "solving") {
+          state.mode = state.cube.isSolved() ? "solved" : "idle";
+          refreshStatus();
+          setButtons();
+        }
+      }
+    }
+  }
+
+  function togglePause() {
+    if (state.mode !== "solving") return;
+    state.paused = !state.paused;
+    updatePauseButton();
+    refreshStatus();
+    if (state.solution.length) {
+      updateSolveBanner(state.solutionIndex, state.solution);
+    }
+    toast(state.paused ? "Playback paused" : "Playback resumed", 1400);
+  }
+
+  function undo() {
+    if (state.mode === "solving" || state.mode === "scrambling" || isAnimating) return;
+    if (!state.history.length) {
+      toast("Nothing to undo.");
+      return;
+    }
+    Sound.ensure();
+    const last = state.history[state.history.length - 1];
+    const inverse = invertMove(last.move);
+    state.mode = "undo";
+    setButtons();
+    performMove(inverse, {
+      record: false,
+      source: "undo",
+      duration: prefersReducedMotion() ? 140 : 260,
+      onComplete: () => {
+        state.history.pop();
+        state.moveCount = Math.max(0, state.moveCount - 1);
+        updateStats();
+        renderHistory();
+      },
+    }).then((result) => {
+      if (result.cancelled) return;
+      if (state.mode === "undo") {
+        state.mode = state.cube.isSolved() ? "solved" : "idle";
+        refreshStatus();
+        setButtons();
+      }
+    });
+  }
+
+  function resetCube({ silent = false } = {}) {
+    state.session++;
+    epoch++;
+    for (const item of queue) item.resolve({ cancelled: true });
+    queue = [];
+    isAnimating = false;
+    currentTurn = null;
+
+    state.cube = new Cube();
+    state.history = [];
+    state.moveCount = 0;
+    state.started = false;
+    state.scrambled = false;
+    state.assisted = false;
+    state.celebrating = false;
+    state.paused = false;
+    state.mode = "idle";
+    state.solution = [];
+    state.solutionIndex = 0;
+
+    resetTimer();
+    clearConfetti();
+    clearTimeout(cameraOrbitTimer);
+    controls.autoRotate = false;
+
+    for (const cubelet of cubelets) {
+      cubelet.position.copy(cubelet.userData.home);
+      cubelet.quaternion.identity();
+    }
+
+    hideBanner();
+    closeAllModals();
+    showSolver(false);
+
+    updateStats();
+    renderHistory();
+    refreshStatus();
+    setButtons();
+
+    if (!silent) {
+      controls.reset();
+      toast("Cube reset.");
+    }
+  }
+
+  /* ------------------------------------------------------------
+     drag-to-turn + orbit
+     ------------------------------------------------------------ */
+
+  const raycaster = new THREE.Raycaster();
+  const pointerNdc = new THREE.Vector2();
+  const tempQuaternion = new THREE.Quaternion();
+  let dragState = null;
+
+  function snapToAxis(vector) {
+    const ax = Math.abs(vector.x);
+    const ay = Math.abs(vector.y);
+    const az = Math.abs(vector.z);
+    if (ax >= ay && ax >= az) {
+      return new THREE.Vector3(Math.sign(vector.x) || 1, 0, 0);
+    }
+    if (ay >= ax && ay >= az) {
+      return new THREE.Vector3(0, Math.sign(vector.y) || 1, 0);
+    }
+    return new THREE.Vector3(0, 0, Math.sign(vector.z) || 1);
+  }
+
+  function moveFromAxis(axisName, layer, sign) {
+    const entry = AXIS_MOVES[axisName] && AXIS_MOVES[axisName][String(layer)];
+    if (!entry) return null;
+    const [face, canonicalSign] = entry;
+    return sign === canonicalSign ? face : `${face}'`;
+  }
+
+  function screenDirection(origin, direction) {
+    const rect = canvas.getBoundingClientRect();
+    const a = origin.clone().project(camera);
+    const b = origin
+      .clone()
+      .addScaledVector(direction, 0.3)
+      .project(camera);
+    const dx = (b.x - a.x) * rect.width;
+    const dy = -(b.y - a.y) * rect.height;
+    const length = Math.hypot(dx, dy) || 1;
+    return new THREE.Vector2(dx / length, dy / length);
+  }
+
+  function onPointerDown(event) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (document.body.dataset.modal || solverLayer.classList.contains("show")) return;
+
+    const rect = canvas.getBoundingClientRect();
+    pointerNdc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointerNdc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    camera.updateMatrixWorld();
+    raycaster.setFromCamera(pointerNdc, camera);
+    const hits = raycaster.intersectObjects(bodyMeshes, false);
+    if (!hits.length) return;
+
+    const hit = hits[0];
+    const cubelet = hit.object.userData.cubelet;
+    if (!cubelet) return;
+
+    const normal = snapToAxis(
+      hit.face.normal.clone().applyQuaternion(hit.object.getWorldQuaternion(tempQuaternion))
+    );
+
+    Sound.ensure();
+    controls.enabled = false;
+    event.stopPropagation();
+    event.preventDefault();
+    if (canvas.setPointerCapture) {
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      hitPoint: hit.point.clone(),
+      normal,
+      cubelet,
+      moved: false,
+    };
+  }
+
+  function onPointerMove(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    if (Math.hypot(dx, dy) < 9) return;
+
+    if (dragState.moved) {
+      event.preventDefault();
+      return;
+    }
+
+    const drag = new THREE.Vector2(dx, dy);
+    drag.normalize();
+
+    const tangents = [];
+    for (const axisName of ["x", "y", "z"]) {
+      const axis = AXIS_VECTORS[axisName];
+      if (Math.abs(axis.dot(dragState.normal)) > 0.5) continue;
+      tangents.push(axis.clone(), axis.clone().negate());
+    }
+
+    let best = null;
+    for (const tangent of tangents) {
+      const screen = screenDirection(dragState.hitPoint, tangent);
+      const dot = screen.dot(drag);
+      if (!best || dot > best.dot) best = { tangent, dot };
+    }
+
+    if (!best || best.dot < 0.22) return;
+
+    let axis = new THREE.Vector3()
+      .crossVectors(dragState.normal, best.tangent)
+      .round();
+    if (axis.lengthSq() < 0.5) return;
+
+    let sign = 1;
+    if (axis.x + axis.y + axis.z < 0) {
+      axis.negate();
+      sign = -1;
+    }
+    const axisName = axis.x !== 0 ? "x" : axis.y !== 0 ? "y" : "z";
+    const layer = Math.round(dragState.cubelet.position.dot(axis));
+    const move = moveFromAxis(axisName, layer, sign);
+    if (!move) return;
+
+    dragState.moved = true;
+    event.preventDefault();
+    if (navigator.vibrate) navigator.vibrate(8);
+    userMove(move);
+  }
+
+  function onPointerUp(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    controls.enabled = true;
+    if (canvas.releasePointerCapture) {
+      try {
+        canvas.releasePointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
+    dragState = null;
+  }
+
+  canvas.addEventListener("pointerdown", onPointerDown, { capture: true });
+  window.addEventListener("pointermove", onPointerMove, { passive: false });
+  window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerUp);
+  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  /* ------------------------------------------------------------
+     keyboard
+     ------------------------------------------------------------ */
+
+  window.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (target && target.closest && target.closest("input, textarea, select")) return;
+
+    if (event.key === "Escape") {
+      if (document.body.dataset.modal) closeAllModals();
+      return;
+    }
+
+    if (document.body.dataset.modal) return;
+
+    if (event.key === " " || event.code === "Space") {
+      if (state.mode === "solving") {
+        event.preventDefault();
+        togglePause();
+      }
+      return;
+    }
+
+    const key = event.key.toUpperCase();
+    if (key.length === 1 && FACE_KEYS.includes(key)) {
+      event.preventDefault();
+      if (event.repeat) return;
+      userMove(key + (event.shiftKey ? "'" : ""));
+      return;
+    }
+
+    if (key === "Z" && !event.shiftKey) {
+      event.preventDefault();
+      if (!event.repeat) undo();
+    }
+  });
+
+  /* ------------------------------------------------------------
+     UI events
+     ------------------------------------------------------------ */
+
+  facePad.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-move]");
+    if (!button) return;
+    userMove(button.dataset.move);
+  });
+
+  scrambleBtn.addEventListener("click", () => scramble());
+  solveBtn.addEventListener("click", () => solveCube());
+  undoBtn.addEventListener("click", () => undo());
+  resetBtn.addEventListener("click", () => resetCube());
+  pauseBtn.addEventListener("click", () => togglePause());
+
+  for (const button of speedButtons) {
+    button.addEventListener("click", () => setSpeed(Number(button.dataset.speed)));
+  }
+
+  soundBtn.addEventListener("click", () => {
+    state.sound = !state.sound;
+    writeJSON(SOUND_KEY, state.sound);
+    updateSoundButton();
+    if (state.sound) {
+      Sound.ensure();
+      Sound.click("U", 0.6);
+      toast("Sound on", 1200);
+    } else {
+      toast("Sound off", 1200);
+    }
+  });
+
+  helpBtn.addEventListener("click", () => openModal("help"));
+  $$("[data-close]").forEach((button) => {
+    button.addEventListener("click", () => closeModal(button.dataset.close));
+  });
+  for (const layer of [victoryModal, helpModal]) {
+    layer.addEventListener("click", (event) => {
+      if (event.target === layer) closeModal(layer.id);
+    });
+  }
+
+  victoryReset.addEventListener("click", () => {
+    closeModal("victory");
+    resetCube();
+  });
+  victoryScramble.addEventListener("click", () => {
+    closeModal("victory");
+    scramble();
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    if (!state.history.length) {
+      toast("No moves to copy yet.");
+      return;
+    }
+    const text = state.history.map((entry) => entry.move).join(" ");
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      toast("Move history copied.");
+    } catch {
+      toast("Could not access the clipboard.");
+    }
+  });
+
+  /* ------------------------------------------------------------
+     resize + render loop
+     ------------------------------------------------------------ */
+
+  function onResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, width < 720 ? 1.75 : 2));
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    fitCamera();
+  }
+
+  window.addEventListener("resize", onResize);
+
+  let lastFrame = performance.now();
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min(0.05, (now - lastFrame) / 1000);
+    lastFrame = now;
+    controls.update();
+    updateConfetti(dt);
+    renderer.render(scene, camera);
+  }
+
+  /* ------------------------------------------------------------
+     boot
+     ------------------------------------------------------------ */
+
+  setSpeed(state.speed);
+  updateSoundButton();
+  updateStats();
+  renderHistory();
+  refreshStatus();
+  setButtons();
+  updatePauseButton();
+  requestAnimationFrame(animate);
+
+  window.addEventListener("beforeunload", () => {
+    if (solverWorker) solverWorker.terminate();
+  });
+
+  setTimeout(() => {
+    if (!state.started && !state.celebrating) {
+      toast("Drag a sticker to turn a layer · drag empty space to orbit", 3800);
+    }
+  }, 1800);
+
+  /* ------------------------------------------------------------
+     debug API + optional self-test
+     ------------------------------------------------------------ */
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("noworker")) solverWorkerFailed = true;
+
+  if (params.has("debug")) {
+    window.__cubeLab = {
+      state: () => ({
+        cube: state.cube.asString(),
+        visual: getVisualFacelets(),
+        sync: checkSync(),
+        solved: state.cube.isSolved(),
+        moves: state.moveCount,
+        mode: state.mode,
+        history: state.history.map((entry) => entry.move),
+        solution: state.solution,
+        solver: { worker: Boolean(solverWorker), main: state.solverReady },
+        assisted: state.assisted,
+        started: state.started,
+        timerMs: timerMs(),
+        best: state.best,
+      }),
+      move: (move) =>
+        performMove(move, {
+          duration: 0,
+          record: false,
+          source: "debug",
+          checkSolved: false,
+        }),
+      sequence: async (moves) => {
+        for (const move of moves) {
+          await performMove(move, {
+            duration: 0,
+            record: false,
+            source: "debug",
+            checkSolved: false,
+          });
+        }
+        return checkSync();
+      },
+      reset: () => resetCube({ silent: true }),
+      scramble,
+      solve: solveCube,
+      setSpeed,
+      screenPoint: (face, row, col) => {
+        const sticker = stickerMeshes.find((candidate) => {
+          const current = stickerFacelet(candidate);
+          return current.face === face && current.row === row && current.col === col;
+        });
+        if (!sticker) return null;
+        const rect = canvas.getBoundingClientRect();
+        const point = new THREE.Vector3();
+        sticker.getWorldPosition(point);
+        point.project(camera);
+        return {
+          x: rect.left + ((point.x + 1) / 2) * rect.width,
+          y: rect.top + ((1 - point.y) / 2) * rect.height,
+        };
+      },
+    };
+  }
+
+  async function runSelfTest() {
+    const output = document.createElement("pre");
+    output.id = "selftest";
+    output.textContent = "CubeLab self-test\n";
+    document.body.appendChild(output);
+
+    let pass = true;
+    const log = (line) => {
+      output.textContent += `${line}\n`;
+    };
+
+    const faceMoves = [];
+    for (const face of ["U", "D", "L", "R", "F", "B"]) {
+      for (const mod of ["", "'", "2"]) faceMoves.push(face + mod);
+    }
+    const sliceMoves = [];
+    for (const face of ["M", "E", "S"]) {
+      for (const mod of ["", "'", "2"]) sliceMoves.push(face + mod);
+    }
+
+    for (const move of faceMoves.concat(sliceMoves)) {
+      resetCube({ silent: true });
+      await performMove(move, {
+        duration: 0,
+        record: false,
+        source: "test",
+        checkSolved: false,
+      });
+      const sync = checkSync();
+      log(`${move.padEnd(3)} ${sync ? "ok" : "SYNC FAIL"}`);
+      if (!sync) {
+        pass = false;
+        log(`  visual  ${getVisualFacelets()}`);
+        log(`  logical ${state.cube.asString()}`);
+      }
+    }
+
+    resetCube({ silent: true });
+    const sequence = [
+      "R", "U", "R'", "U'", "F2", "L", "D'", "B", "R2", "U",
+      "F'", "L2", "D", "B'", "U2", "R'", "F", "D2", "M", "E'", "S2",
+    ];
+    let sequenceOk = true;
+    for (const move of sequence) {
+      await performMove(move, {
+        duration: 0,
+        record: false,
+        source: "test",
+        checkSolved: false,
+      });
+      if (!checkSync()) {
+        sequenceOk = false;
+        pass = false;
+        log(`sequence sync FAIL after ${move}`);
+        log(`  visual  ${getVisualFacelets()}`);
+        log(`  logical ${state.cube.asString()}`);
+        break;
+      }
+    }
+    log(`sequence  ${sequenceOk ? "ok" : "FAIL"}`);
+
+    const dragCases = [
+      ["y", 1, 1, "U'"],
+      ["y", 1, -1, "U"],
+      ["y", -1, 1, "D"],
+      ["y", -1, -1, "D'"],
+      ["x", 1, -1, "R"],
+      ["x", 1, 1, "R'"],
+      ["x", -1, 1, "L"],
+      ["z", 1, -1, "F"],
+      ["z", 1, 1, "F'"],
+      ["z", -1, 1, "B"],
+      ["y", 0, 1, "E"],
+    ];
+    let dragOk = true;
+    for (const [axis, layer, sign, expected] of dragCases) {
+      const actual = moveFromAxis(axis, layer, sign);
+      if (actual !== expected) {
+        dragOk = false;
+        pass = false;
+        log(`drag ${axis}${layer}/${sign}: expected ${expected}, got ${actual}`);
+      }
+    }
+    log(`drag map  ${dragOk ? "ok" : "FAIL"}`);
+
+    try {
+      if (typeof Cube.initSolver === "function") {
+        Cube.initSolver();
+        const solution = state.cube.solve();
+        log(`solution  ${solution || "(already solved)"}`);
+        for (const move of solution.split(" ").filter(Boolean)) {
+          await performMove(move, {
+            duration: 0,
+            record: false,
+            source: "test",
+            checkSolved: false,
+          });
+        }
+        const logicalSolved = state.cube.isSolved();
+        const finalSync = checkSync();
+        const visualSolved = isVisuallySolved();
+        log(`logical   ${logicalSolved ? "solved" : "NOT SOLVED"}`);
+        log(`visual    ${visualSolved ? "solved" : "NOT SOLVED"}`);
+        log(`sync      ${finalSync ? "ok" : "FAIL"}`);
+        if (!logicalSolved || !visualSolved || !finalSync) pass = false;
+      } else {
+        pass = false;
+        log("solver    unavailable");
+      }
+    } catch (error) {
+      pass = false;
+      log(`solver    ERROR ${error.message}`);
+    }
+
+    log(`RESULT    ${pass ? "PASS" : "FAIL"}`);
+    document.body.dataset.selftest = pass ? "pass" : "fail";
+    document.title = `CubeLab self-test — ${pass ? "PASS" : "FAIL"}`;
+  }
+
+  if (params.has("selftest")) {
+    runSelfTest().catch((error) => {
+      console.error(error);
+      document.body.dataset.selftest = "fail";
+      const output = document.getElementById("selftest");
+      if (output) output.textContent += `\nFATAL ${error.stack || error.message}\n`;
+    });
+  }
+})();
+
+</script>
+</body>
+</html>
