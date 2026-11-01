@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Live demo
+    url: https://somphol.github.io/rubiks-cube/
+    about: Try the latest version before filing an issue.
+  - name: Security vulnerability
+    url: https://github.com/somphol/rubiks-cube/security/advisories/new
+    about: Report security issues privately. Do not open a public issue.
