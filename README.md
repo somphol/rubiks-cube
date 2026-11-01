@@ -1,10 +1,21 @@
+<div align="center">
+
+<img src="docs/social-card.png" alt="CubeLab — Interactive 3D Rubik's Cube Studio" width="100%" />
+
 # CubeLab
 
-An interactive 3D Rubik's Cube studio with drag-to-turn controls, a live move log, synthesized mechanical clicks, and a built-in Kociemba two-phase solver.
+**Interactive 3D Rubik's Cube Studio**
 
-The playable app is a **single self-contained HTML file**. Open `index.html` and it runs — no build step, server, account, or tracking.
+Drag-to-turn controls, a live move log, synthesized mechanical clicks, and a real Kociemba two-phase solver in the browser.
 
-![CubeLab preview](preview.png)
+[![Live demo](https://img.shields.io/badge/live_demo-online-f59e0b?style=flat-square)](https://somphol.github.io/rubiks-cube/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b?style=flat-square)](LICENSE)
+
+**[Try it live →](https://somphol.github.io/rubiks-cube/)**
+
+</div>
+
+---
 
 ## Highlights
 
