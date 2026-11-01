@@ -24,8 +24,9 @@ Drag-to-turn controls, a live move log, synthesized mechanical clicks, and a rea
 - **Full control dock** — U, U′, D, D′, L, L′, R, R′, F, F′, B, B′ buttons plus keyboard shortcuts.
 - **Scramble** — 20 randomized, non-redundant face turns with fast animated playback.
 - **Solve** — computes a real solution from the current cube state with Herbert Kociemba's two-phase algorithm, then plays it back step by step. Solutions are typically 20 moves or fewer.
+- **Auto Solve** — a cinematic run from start to finish: it scrambles a solved cube, computes the solution, and performs it with a face-aware camera, a glow on the turning layer, and a slow-mo finish. Drag the cube or press `Esc` to take the camera back while the solve keeps playing. Switch to Step mode to walk through the same cinematic solve one move at a time.
 - **Solver in a worker** — the first solve warms up the pruning tables off the main thread, so the UI keeps animating. A main-thread fallback keeps the solver working in browsers that block Blob workers.
-- **Playback controls** — Slow, Medium, and Fast speeds, plus pause/resume.
+- **Playback controls** — Slow, Medium, Fast, and Step modes, plus pause/resume. In Step mode, the solver waits after every move; click Next (or press `Space` / `N`) to advance.
 - **Live HUD** — timer, move count, personal best, solve state, and a scrollable move-history log with copy-to-clipboard.
 - **Undo & reset** — reverse the last move or snap back to the pristine solved state.
 - **Synthesized audio** — Web Audio API plastic clicks and a victory chime. No audio files.
@@ -64,9 +65,11 @@ If GitHub Pages is enabled for this repository:
 | Prime turns | Hold `Shift` while pressing a face key |
 | Undo | `Z` |
 | Pause / resume playback | `Space` |
+| Next move in Step mode | Click Next, `Space`, or `N` |
+| Take camera control during Auto Solve | Drag the cube or press `Esc` |
 | Close a dialog | `Esc` |
 
-The on-screen dock also exposes every face turn, Scramble, Solve, Undo, and Reset.
+The on-screen dock also exposes every face turn, Scramble, Solve, Auto Solve, Undo, and Reset.
 
 ## How the solver works
 
@@ -121,7 +124,7 @@ It checks every face and slice move against the visual cube, validates the drag-
 
 - **Three.js r128** via jsDelivr, with `OrbitControls` and `RoundedBoxGeometry` from the matching examples.
 - **No external audio or image assets** — the environment map, favicon, glow, and confetti are generated at runtime.
-- **Preferences** — sound, playback speed, and personal best are stored in `localStorage`.
+- **Preferences** — sound, playback speed, step mode, and personal best are stored in `localStorage`.
 - **Single file** — the generated `index.html` contains the UI, styles, cube model, solver, and app logic. Three.js is the only runtime CDN dependency, as requested.
 
 ## Contributing

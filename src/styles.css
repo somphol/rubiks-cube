@@ -702,6 +702,12 @@ a:focus-visible {
   gap: 5px;
 }
 
+.pause-btn:disabled,
+.cine-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .pause-btn svg {
   width: 10px;
   height: 10px;
@@ -816,7 +822,7 @@ a:focus-visible {
 .actions {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, auto);
+  grid-template-columns: repeat(5, auto);
   gap: 6px;
 }
 
@@ -878,6 +884,138 @@ a:focus-visible {
   color: #020b0e;
   box-shadow: 0 10px 30px rgba(34, 211, 238, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   filter: brightness(1.04);
+}
+
+.action-btn.auto {
+  color: #c7d2fe;
+  border-color: rgba(129, 140, 248, 0.22);
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.13), rgba(94, 231, 245, 0.06));
+}
+
+.action-btn.auto:hover:not(:disabled) {
+  color: #e0e7ff;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.22), rgba(94, 231, 245, 0.11));
+  border-color: rgba(129, 140, 248, 0.42);
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.2);
+}
+
+/* ---------- cinematic auto-solve ---------- */
+
+.topbar,
+.stats-panel,
+.history-panel,
+.speed-row,
+.dock,
+.hint {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.cinematic .topbar,
+.cinematic .stats-panel,
+.cinematic .history-panel {
+  animation: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cinematic .topbar,
+.cinematic .topbar *,
+.cinematic .stats-panel,
+.cinematic .stats-panel *,
+.cinematic .history-panel,
+.cinematic .history-panel * {
+  pointer-events: none;
+}
+
+.cinematic .speed-row,
+.cinematic .dock,
+.cinematic .hint {
+  display: none;
+}
+
+.cinematic .banner {
+  width: min(720px, 100%);
+  padding: 13px 22px 14px;
+  border-color: rgba(94, 231, 245, 0.18);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55), 0 0 42px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.cinematic .banner-move {
+  font-size: 26px;
+}
+
+.cinematic .banner-kicker {
+  color: var(--cyan);
+  background: rgba(94, 231, 245, 0.12);
+  border-color: rgba(94, 231, 245, 0.24);
+}
+
+.cinematic .banner-sub {
+  font-size: 11.5px;
+}
+
+.cine-controls {
+  position: fixed;
+  z-index: 40;
+  top: calc(18px + env(safe-area-inset-top, 0px));
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.3s, transform 0.3s, visibility 0s linear 0.3s;
+}
+
+body.cinematic .cine-controls {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition: opacity 0.3s, transform 0.3s, visibility 0s;
+}
+
+.cine-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--ink-soft);
+  background: rgba(10, 15, 24, 0.72);
+  border: 1px solid var(--line-strong);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.cine-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cine-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--line-strong);
+}
+
+.cine-btn.pause {
+  color: var(--violet);
+  background: rgba(196, 181, 253, 0.1);
+  border-color: rgba(196, 181, 253, 0.16);
+}
+
+.cine-btn.pause:hover {
+  background: rgba(196, 181, 253, 0.16);
+  border-color: rgba(196, 181, 253, 0.28);
 }
 
 .hint {
@@ -1468,7 +1606,7 @@ a:focus-visible {
   }
 
   .actions {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
   }
 
   .action-btn {
@@ -1641,6 +1779,42 @@ a:focus-visible {
     height: 12px;
   }
 
+  .action-btn.auto {
+    padding: 0 8px;
+  }
+
+  .action-btn.auto span {
+    display: none;
+  }
+
+  .cinematic .banner {
+    padding: 10px 14px 11px;
+  }
+
+  .cinematic .banner-move {
+    font-size: 19px;
+  }
+
+  .cinematic .banner-sub {
+    font-size: 9.5px;
+  }
+
+  .cine-controls {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    gap: 6px;
+  }
+
+  .cine-btn {
+    height: 32px;
+    padding: 0 11px;
+    font-size: 9px;
+  }
+
+  .cine-btn.pause {
+    padding: 0 9px;
+  }
+
   .modal-card {
     padding: 24px 20px;
     border-radius: 20px;
@@ -1707,6 +1881,10 @@ a:focus-visible {
 
   .banner {
     display: none;
+  }
+
+  .cinematic .banner {
+    display: grid;
   }
 }
 

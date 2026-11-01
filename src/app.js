@@ -120,6 +120,7 @@
   const BEST_KEY = "cubelab.best.v1";
   const SOUND_KEY = "cubelab.sound.v1";
   const SPEED_KEY = "cubelab.speed.v1";
+  const STEP_KEY = "cubelab.step.v1";
 
   const isCompact = () => window.matchMedia("(max-width: 720px)").matches;
   const prefersReducedMotion = () =>
@@ -154,6 +155,7 @@
 
   const storedSound = readJSON(SOUND_KEY, true);
   const storedSpeed = Number(readJSON(SPEED_KEY, 330));
+  const storedStep = readJSON(STEP_KEY, false) === true;
 
   /* ------------------------------------------------------------
      application state
@@ -166,6 +168,8 @@
     timer: { start: 0, elapsed: 0, running: false },
     mode: "idle", // idle | scrambling | solving | solved | undo
     speed: [150, 330, 650].includes(storedSpeed) ? storedSpeed : 330,
+    step: storedStep,
+    stepWaiting: false,
     sound: storedSound !== false,
     paused: false,
     started: false,
@@ -201,6 +205,10 @@
   const facePad = $("#facePad");
   const scrambleBtn = $("#scrambleBtn");
   const solveBtn = $("#solveBtn");
+  const autoBtn = $("#autoBtn");
+  const cineExit = $("#cineExit");
+  const cinePause = $("#cinePause");
+  const cinePauseText = $("#cinePauseText");
   const undoBtn = $("#undoBtn");
   const resetBtn = $("#resetBtn");
   const pauseBtn = $("#pauseBtn");
@@ -518,6 +526,251 @@
   fitCamera();
 
   /* ------------------------------------------------------------
+     cinematic camera director
+     ------------------------------------------------------------ */
+
+  const DEG = Math.PI / 180;
+
+  const CINEMA = {
+    active: false,
+    cameraCancelled: false,
+    anim: null,
+    saved: null,
+    damping: true,
+  };
+
+  // Camera viewpoints that make each face readable. The angles are a
+  // three-quarter view: enough of the working face to follow the turn,
+  // enough of the neighbouring faces to keep the cube legible.
+  const CINEMA_FACE_VIEW = {
+    F: { theta: 18, phi: 62 },
+    R: { theta: 72, phi: 62 },
+    L: { theta: -72, phi: 62 },
+    B: { theta: 162, phi: 62 },
+    U: { theta: 28, phi: 34 },
+    D: { theta: 28, phi: 118 },
+  };
+
+  const cinemaDirection = new THREE.Vector3();
+
+  function cameraAspectScale() {
+    const aspect = window.innerWidth / window.innerHeight;
+    if (aspect < 0.55) return 1.42;
+    if (aspect < 0.8) return 1.28;
+    if (aspect < 1.05) return 1.12;
+    return 1;
+  }
+
+  function cinematicDistance() {
+    return CAMERA_HOME.length() * cameraAspectScale() * 0.94;
+  }
+
+  function directionFromSpherical(theta, phi, out = new THREE.Vector3()) {
+    const sinPhi = Math.sin(phi);
+    return out.set(
+      sinPhi * Math.sin(theta),
+      Math.cos(phi),
+      sinPhi * Math.cos(theta)
+    );
+  }
+
+  function sphericalFromDirection(direction) {
+    const v = direction.clone().normalize();
+    return {
+      theta: Math.atan2(v.x, v.z),
+      phi: Math.acos(clamp(v.y, -1, 1)),
+    };
+  }
+
+  function shortestAngle(from, to) {
+    let delta = (to - from) % (Math.PI * 2);
+    if (delta > Math.PI) delta -= Math.PI * 2;
+    if (delta < -Math.PI) delta += Math.PI * 2;
+    return delta;
+  }
+
+  function cinematicTurnDuration() {
+    if (prefersReducedMotion()) return 140;
+    return clamp(state.speed * 1.55, 280, 900);
+  }
+
+  function cinematicCameraDuration() {
+    if (prefersReducedMotion()) return 0;
+    return clamp(state.speed * 1.35, 260, 760);
+  }
+
+  function animateCinemaCamera({ theta, phi, distance, duration }) {
+    return new Promise((resolve) => {
+      if (!CINEMA.active || CINEMA.cameraCancelled || duration <= 0) {
+        resolve();
+        return;
+      }
+      const fromOffset = camera.position.clone().sub(controls.target);
+      const from = sphericalFromDirection(fromOffset);
+      CINEMA.anim = {
+        fromTheta: from.theta,
+        toTheta: from.theta + shortestAngle(from.theta, theta),
+        fromPhi: from.phi,
+        toPhi: phi,
+        fromDistance: fromOffset.length(),
+        toDistance: distance,
+        fromTarget: controls.target.clone(),
+        toTarget: CAMERA_TARGET.clone(),
+        start: performance.now(),
+        duration,
+        resolve,
+      };
+    });
+  }
+
+  function updateCinemaCamera(now) {
+    const anim = CINEMA.anim;
+    if (!anim) return;
+    const t = anim.duration <= 0 ? 1 : clamp((now - anim.start) / anim.duration, 0, 1);
+    const eased = easeInOutCubic(t);
+    const theta = anim.fromTheta + (anim.toTheta - anim.fromTheta) * eased;
+    const phi = anim.fromPhi + (anim.toPhi - anim.fromPhi) * eased;
+    const distance =
+      anim.fromDistance + (anim.toDistance - anim.fromDistance) * eased;
+    controls.target.lerpVectors(anim.fromTarget, anim.toTarget, eased);
+    camera.position
+      .copy(controls.target)
+      .addScaledVector(
+        directionFromSpherical(theta, phi, cinemaDirection),
+        distance
+      );
+    if (t >= 1) {
+      CINEMA.anim = null;
+      anim.resolve();
+    }
+  }
+
+  function currentCameraDirection() {
+    return camera.position.clone().sub(controls.target).normalize();
+  }
+
+  function faceIsVisible(face, threshold = 0.22) {
+    const normal = FACE_NORMALS[face] || FACE_NORMALS.F;
+    return currentCameraDirection().dot(normal) >= threshold;
+  }
+
+  function faceViewFor(move) {
+    const face = move[0];
+    if (face === "M") return CINEMA_FACE_VIEW.R;
+    if (face === "E") return CINEMA_FACE_VIEW.U;
+    if (face === "S") return CINEMA_FACE_VIEW.F;
+    return CINEMA_FACE_VIEW[face] || CINEMA_FACE_VIEW.F;
+  }
+
+  function faceForVisibility(move) {
+    const face = move[0];
+    if (face === "M") return "R";
+    if (face === "E") return "U";
+    if (face === "S") return "F";
+    return face;
+  }
+
+  async function cinemaFocus(move) {
+    if (!CINEMA.active || CINEMA.cameraCancelled || prefersReducedMotion()) return;
+    // Stay planted while the working face is already readable. This keeps
+    // most solves on a calm hero view instead of whipping between angles.
+    if (faceIsVisible(faceForVisibility(move))) return;
+    const view = faceViewFor(move);
+    await animateCinemaCamera({
+      theta: view.theta * DEG,
+      phi: view.phi * DEG,
+      distance: cinematicDistance(),
+      duration: cinematicCameraDuration(),
+    });
+  }
+
+  async function cinemaIntro() {
+    if (!CINEMA.active || CINEMA.cameraCancelled || prefersReducedMotion()) return;
+    updateBanner({
+      kicker: state.step ? "STEP" : "AUTO SOLVE",
+      move: "Ready",
+      sub: state.step
+        ? "Click Next to begin the solve."
+        : "The two-phase solver found a path home.",
+      progress: 0,
+    });
+    await animateCinemaCamera({
+      theta: Math.atan2(CAMERA_HOME.x, CAMERA_HOME.z),
+      phi: Math.acos(clamp(CAMERA_HOME.y / CAMERA_HOME.length(), -1, 1)),
+      distance: cinematicDistance(),
+      duration: 900,
+    });
+    await wait(220);
+  }
+
+  async function cinemaOutro() {
+    clearLayerGlow();
+    if (!CINEMA.active || CINEMA.cameraCancelled || prefersReducedMotion()) return;
+    updateBanner({
+      kicker: "SOLVED",
+      move: "Done",
+      sub: "Every sticker is home.",
+      progress: 1,
+    });
+    await animateCinemaCamera({
+      theta: Math.atan2(CAMERA_HOME.x, CAMERA_HOME.z) + 0.25,
+      phi:
+        Math.acos(clamp(CAMERA_HOME.y / CAMERA_HOME.length(), -1, 1)) - 0.06,
+      distance: cinematicDistance() * 1.12,
+      duration: 1000,
+    });
+  }
+
+  function beginCinematic() {
+    if (CINEMA.active) return;
+    CINEMA.active = true;
+    CINEMA.cameraCancelled = false;
+    CINEMA.anim = null;
+    CINEMA.saved = {
+      position: camera.position.clone(),
+      target: controls.target.clone(),
+    };
+    CINEMA.damping = controls.enableDamping;
+    controls.enableDamping = false;
+    controls.autoRotate = false;
+    // Reduced-motion viewers keep camera control; the solve still plays.
+    controls.enabled = prefersReducedMotion();
+    document.body.classList.add("cinematic");
+  }
+
+  function endCinematic({ restore = false } = {}) {
+    if (!CINEMA.active) return;
+    CINEMA.active = false;
+    const pending = CINEMA.anim;
+    CINEMA.anim = null;
+    if (pending) pending.resolve();
+    document.body.classList.remove("cinematic");
+    controls.enabled = true;
+    controls.enableDamping = CINEMA.damping;
+    controls.autoRotate = false;
+    clearLayerGlow();
+    if (restore && CINEMA.saved) {
+      camera.position.copy(CINEMA.saved.position);
+      controls.target.copy(CINEMA.saved.target);
+      controls.update();
+    }
+    CINEMA.saved = null;
+  }
+
+  function cancelCinematicCamera() {
+    if (!CINEMA.active || CINEMA.cameraCancelled) return;
+    CINEMA.cameraCancelled = true;
+    const pending = CINEMA.anim;
+    CINEMA.anim = null;
+    if (pending) pending.resolve();
+    document.body.classList.remove("cinematic");
+    controls.enabled = true;
+    controls.enableDamping = CINEMA.damping;
+    controls.autoRotate = false;
+    toast("Camera control returned to you.", 1700);
+  }
+
+  /* ------------------------------------------------------------
      cube geometry
      ------------------------------------------------------------ */
 
@@ -606,13 +859,20 @@
 
         for (const face of faces) {
           const normal = FACE_NORMALS[face];
-          const sticker = new THREE.Mesh(stickerGeometry, stickerMaterials[face]);
+          // Each sticker gets its own material so the cinematic director can
+          // pulse just the layer that is turning.
+          const material = stickerMaterials[face].clone();
+          const sticker = new THREE.Mesh(stickerGeometry, material);
           sticker.position.copy(normal).multiplyScalar(0.4815);
           sticker.quaternion.setFromUnitVectors(Z_AXIS, normal);
           sticker.userData = {
             color: face,
             normal: normal.clone(),
             cubelet: group,
+            baseColor: material.color.clone(),
+            baseEmissive: material.emissive.clone(),
+            glow: 0,
+            glowTarget: 0,
           };
           group.add(sticker);
           stickerMeshes.push(sticker);
@@ -620,6 +880,53 @@
 
         cubeGroup.add(group);
         cubelets.push(group);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------
+     cinematic layer glow
+     ------------------------------------------------------------ */
+
+  const glowStickers = new Set();
+  const GLOW_TINT = new THREE.Color(0x9ff7ff);
+
+  function setLayerGlow(selected, on) {
+    for (const cubelet of selected) {
+      for (const child of cubelet.children) {
+        if (!child.userData || !child.userData.baseColor) continue;
+        child.userData.glowTarget = on ? 1 : 0;
+        glowStickers.add(child);
+      }
+    }
+  }
+
+  function clearLayerGlow() {
+    for (const sticker of stickerMeshes) {
+      sticker.userData.glowTarget = 0;
+      glowStickers.add(sticker);
+    }
+  }
+
+  function updateStickerGlow(dt) {
+    if (!glowStickers.size) return;
+    const k = 1 - Math.exp(-dt * 12);
+    for (const sticker of glowStickers) {
+      const data = sticker.userData;
+      data.glow += (data.glowTarget - data.glow) * k;
+      const glow = data.glow;
+      sticker.material.emissive
+        .copy(data.baseColor)
+        .multiplyScalar(0.02 + glow * 0.34)
+        .lerp(GLOW_TINT, glow * 0.14);
+      sticker.material.emissiveIntensity = 1 + glow * 0.32;
+      sticker.scale.setScalar(1 + glow * 0.02);
+      if (data.glowTarget === 0 && glow < 0.008) {
+        data.glow = 0;
+        sticker.material.emissive.copy(data.baseEmissive);
+        sticker.material.emissiveIntensity = 1;
+        sticker.scale.setScalar(1);
+        glowStickers.delete(sticker);
       }
     }
   }
@@ -748,6 +1055,10 @@
       return;
     }
     if (state.mode === "solving") {
+      if (state.step && state.stepWaiting) {
+        setStatus("Step", "solve");
+        return;
+      }
       setStatus(state.paused ? "Paused" : "Solving", state.paused ? "scramble" : "solve");
       return;
     }
@@ -826,6 +1137,7 @@
 
   let queue = [];
   let isAnimating = false;
+  let stepGate = null;
   let epoch = 0;
   let currentTurn = null;
 
@@ -844,6 +1156,30 @@
       layer: def.layer,
       angle: def.angle * factor,
     };
+  }
+
+  function waitForStep() {
+    if (!state.step) return Promise.resolve();
+    return new Promise((resolve) => {
+      stepGate = { resolve };
+      state.stepWaiting = true;
+      refreshStatus();
+      setButtons();
+    });
+  }
+
+  function releaseStep() {
+    const gate = stepGate;
+    stepGate = null;
+    state.stepWaiting = false;
+    if (gate) gate.resolve();
+    refreshStatus();
+    setButtons();
+  }
+
+  function advanceStep() {
+    if (!state.step || !state.stepWaiting) return;
+    releaseStep();
   }
 
   function performMove(move, options = {}) {
@@ -889,6 +1225,10 @@
     const selected = cubelets.filter(
       (cubelet) => Math.round(cubelet.position[parsed.axis]) === parsed.layer
     );
+    if (options.highlightLayer) {
+      clearLayerGlow();
+      setLayerGlow(selected, true);
+    }
     const starts = selected.map((cubelet) => ({
       cubelet,
       position: cubelet.position.clone(),
@@ -1127,7 +1467,10 @@
     if (progress !== undefined) {
       bannerBar.style.width = `${clamp(progress, 0, 1) * 100}%`;
     }
-    if (show) banner.classList.add("show");
+    if (show) {
+      clearTimeout(bannerTimer);
+      banner.classList.add("show");
+    }
   }
 
   function hideBanner() {
@@ -1141,18 +1484,29 @@
   }
 
   function updatePauseButton() {
-    pauseBtn.classList.toggle("show", state.mode === "solving");
-    pauseText.textContent = state.paused ? "Resume" : "Pause";
-    pauseBtn.setAttribute(
-      "aria-label",
-      state.paused ? "Resume solver playback" : "Pause solver playback"
-    );
-    const svg = pauseBtn.querySelector("svg");
-    if (svg) {
-      svg.innerHTML = state.paused
+    const stepping = state.step;
+    const label = stepping ? "Next" : state.paused ? "Resume" : "Pause";
+    const aria = stepping
+      ? "Next solver move"
+      : state.paused
+        ? "Resume solver playback"
+        : "Pause solver playback";
+    const icon = stepping
+      ? '<path d="M6 5v14l11-7z"/><rect x="18" y="5" width="2" height="14" rx="1"/>'
+      : state.paused
         ? '<path d="M8 5v14l11-7z"/>'
         : '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
-    }
+
+    pauseBtn.classList.toggle("show", state.mode === "solving");
+    pauseText.textContent = label;
+    pauseBtn.setAttribute("aria-label", aria);
+    const svg = pauseBtn.querySelector("svg");
+    if (svg) svg.innerHTML = icon;
+
+    cinePauseText.textContent = label;
+    cinePause.setAttribute("aria-label", aria);
+    const cineSvg = cinePause.querySelector("svg");
+    if (cineSvg) cineSvg.innerHTML = icon;
   }
 
   function setButtons() {
@@ -1164,24 +1518,40 @@
 
     scrambleBtn.disabled = lock || isAnimating;
     solveBtn.disabled = lock || isAnimating || state.cube.isSolved() || state.celebrating;
+    autoBtn.disabled = lock || isAnimating;
     undoBtn.disabled = lock || isAnimating || state.history.length === 0;
     resetBtn.disabled = false;
-    pauseBtn.disabled = !solving;
+    const canStep = state.step && state.stepWaiting && !isAnimating;
+    pauseBtn.disabled = state.step ? !canStep : !solving;
+    cinePause.disabled = state.step ? !canStep : !solving;
 
     const solveLabel = solveBtn.querySelector("span");
     if (solveLabel) solveLabel.textContent = solving ? "Solving…" : "Solve";
+    const autoLabel = autoBtn.querySelector("span");
+    if (autoLabel) autoLabel.textContent = solving ? "Auto…" : "Auto Solve";
     const scrambleLabel = scrambleBtn.querySelector("span");
     if (scrambleLabel) scrambleLabel.textContent = scrambling ? "Scrambling…" : "Scramble";
 
     updatePauseButton();
   }
 
-  function setSpeed(ms) {
-    state.speed = ms;
-    writeJSON(SPEED_KEY, ms);
-    for (const button of speedButtons) {
-      button.classList.toggle("is-active", Number(button.dataset.speed) === ms);
+  function setSpeed(value) {
+    const step = value === "step" || value === "Step";
+    if (!step && state.stepWaiting) releaseStep();
+    state.step = step;
+    if (!step) {
+      state.speed = Number(value);
+      writeJSON(SPEED_KEY, state.speed);
     }
+    writeJSON(STEP_KEY, state.step);
+    for (const button of speedButtons) {
+      const isStep = button.dataset.speed === "step";
+      const active = step
+        ? isStep
+        : !isStep && Number(button.dataset.speed) === state.speed;
+      button.classList.toggle("is-active", active);
+    }
+    setButtons();
   }
 
   function updateSoundButton() {
@@ -1383,6 +1753,7 @@ self.onmessage = function (event) {
   function userMove(move) {
     if (state.mode === "solving" || state.mode === "scrambling") return;
     if (document.body.dataset.modal) return;
+    if (CINEMA.active) endCinematic({ restore: false });
     Sound.ensure();
 
     if (state.mode === "solved" || state.celebrating) {
@@ -1437,8 +1808,11 @@ self.onmessage = function (event) {
 
   async function scramble() {
     if (state.mode === "solving" || state.mode === "scrambling" || isAnimating) return;
+    if (CINEMA.active) endCinematic({ restore: false });
+    clearLayerGlow();
     Sound.ensure();
     const session = ++state.session;
+    releaseStep();
     closeAllModals();
     state.mode = "scrambling";
     state.celebrating = false;
@@ -1502,22 +1876,32 @@ self.onmessage = function (event) {
     showBannerFor(6500);
   }
 
-  function updateSolveBanner(index, moves) {
+  function updateSolveBanner(index, moves, cinematic = false) {
     const current = moves[index] || "";
     const upcoming = moves.slice(index + 1, index + 5).map(displayMove).join(" ");
     updateBanner({
-      kicker: state.paused ? "PAUSED" : `SOLVING · ${index + 1}/${moves.length}`,
+      kicker: state.paused
+        ? "PAUSED"
+        : state.step
+          ? `STEP · ${index + 1}/${moves.length}`
+          : cinematic
+            ? `AUTO SOLVE · ${index + 1}/${moves.length}`
+            : `SOLVING · ${index + 1}/${moves.length}`,
       move: displayMove(current),
       sub: state.paused
         ? "Playback paused — press Space or Resume"
-        : upcoming
-          ? `Next: ${upcoming}`
-          : "Final move",
+        : state.step
+          ? upcoming
+            ? `Click Next · then ${upcoming}`
+            : "Click Next for the final move"
+          : upcoming
+            ? `Next: ${upcoming}`
+            : "Final move",
       progress: (index + 1) / moves.length,
     });
   }
 
-  async function solveCube() {
+  async function solveCube(options = {}) {
     if (state.mode === "solving" || state.mode === "scrambling" || isAnimating) return;
     if (state.cube.isSolved()) {
       toast("The cube is already solved.");
@@ -1528,6 +1912,7 @@ self.onmessage = function (event) {
       return;
     }
 
+    const cinematic = options.cinematic === true;
     Sound.ensure();
     const session = ++state.session;
     closeModal("victory");
@@ -1537,6 +1922,7 @@ self.onmessage = function (event) {
     state.assisted = true;
     refreshStatus();
     setButtons();
+    if (cinematic) beginCinematic();
     showSolver(true);
     solverSub.textContent = "Initializing the two-phase solver…";
     await wait(70);
@@ -1550,6 +1936,7 @@ self.onmessage = function (event) {
       showSolver(false);
 
       if (!moves.length) {
+        if (cinematic) endCinematic({ restore: true });
         if (state.cube.isSolved()) onSolved("solver");
         else toast("No solution found. Try resetting the cube.");
         state.mode = state.cube.isSolved() ? "solved" : "idle";
@@ -1567,6 +1954,11 @@ self.onmessage = function (event) {
       refreshStatus();
       setButtons();
 
+      if (cinematic) {
+        await cinemaIntro();
+        if (session !== state.session) return;
+      }
+
       for (let i = 0; i < moves.length; i++) {
         if (session !== state.session) return;
         while (state.paused && session === state.session) {
@@ -1574,17 +1966,36 @@ self.onmessage = function (event) {
         }
         if (session !== state.session) return;
         state.solutionIndex = i;
-        updateSolveBanner(i, moves);
+        if (cinematic) {
+          await cinemaFocus(moves[i]);
+          if (session !== state.session) return;
+          while (state.paused && session === state.session) {
+            await wait(80);
+          }
+          if (session !== state.session) return;
+        }
+        updateSolveBanner(i, moves, cinematic);
+        if (state.step) {
+          await waitForStep();
+          if (session !== state.session) return;
+        }
         await performMove(moves[i], {
           record: true,
           source: "solver",
-          duration: state.speed,
+          duration: cinematic ? cinematicTurnDuration() : state.speed,
+          highlightLayer: cinematic,
+          checkSolved: !cinematic,
         });
         if (session !== state.session) return;
         if (state.celebrating) break;
       }
 
       if (session !== state.session) return;
+      if (cinematic) {
+        await cinemaOutro();
+        if (session !== state.session) return;
+        endCinematic({ restore: false });
+      }
       if (state.cube.isSolved()) {
         if (!state.celebrating) onSolved("solver");
       } else {
@@ -1596,7 +2007,10 @@ self.onmessage = function (event) {
       setButtons();
     } catch (error) {
       console.error(error);
-      if (session === state.session) showSolver(false);
+      if (session === state.session) {
+        showSolver(false);
+        if (cinematic) endCinematic({ restore: true });
+      }
       state.mode = "idle";
       refreshStatus();
       setButtons();
@@ -1604,6 +2018,7 @@ self.onmessage = function (event) {
     } finally {
       if (session === state.session) {
         showSolver(false);
+        if (cinematic) endCinematic({ restore: !state.cube.isSolved() });
         if (state.mode === "solving") {
           state.mode = state.cube.isSolved() ? "solved" : "idle";
           refreshStatus();
@@ -1613,13 +2028,33 @@ self.onmessage = function (event) {
     }
   }
 
+  async function autoSolve() {
+    if (state.mode === "solving" || state.mode === "scrambling" || isAnimating) return;
+    if (typeof Cube.initSolver !== "function") {
+      toast("The solver is unavailable in this browser.");
+      return;
+    }
+    closeAllModals();
+    Sound.ensure();
+
+    // A solved cube gets a fresh scramble first so the show has a beginning.
+    if (state.cube.isSolved()) {
+      toast("Scrambling first, then solving…", 1800);
+      await scramble();
+      if (state.mode === "solving" || state.mode === "scrambling") return;
+    }
+
+    await solveCube({ cinematic: true });
+  }
+
   function togglePause() {
     if (state.mode !== "solving") return;
+    if (state.cube.isSolved()) return;
     state.paused = !state.paused;
     updatePauseButton();
     refreshStatus();
     if (state.solution.length) {
-      updateSolveBanner(state.solutionIndex, state.solution);
+      updateSolveBanner(state.solutionIndex, state.solution, CINEMA.active);
     }
     toast(state.paused ? "Playback paused" : "Playback resumed", 1400);
   }
@@ -1658,6 +2093,9 @@ self.onmessage = function (event) {
   function resetCube({ silent = false } = {}) {
     state.session++;
     epoch++;
+    if (CINEMA.active) endCinematic({ restore: false });
+    clearLayerGlow();
+    releaseStep();
     for (const item of queue) item.resolve({ cancelled: true });
     queue = [];
     isAnimating = false;
@@ -1745,6 +2183,11 @@ self.onmessage = function (event) {
   function onPointerDown(event) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (document.body.dataset.modal || solverLayer.classList.contains("show")) return;
+    if (CINEMA.active && !CINEMA.cameraCancelled) {
+      // Any grab hands the camera back; the solve keeps playing.
+      cancelCinematicCamera();
+      return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     pointerNdc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -1866,6 +2309,7 @@ self.onmessage = function (event) {
 
     if (event.key === "Escape") {
       if (document.body.dataset.modal) closeAllModals();
+      else if (CINEMA.active && !CINEMA.cameraCancelled) cancelCinematicCamera();
       return;
     }
 
@@ -1874,12 +2318,19 @@ self.onmessage = function (event) {
     if (event.key === " " || event.code === "Space") {
       if (state.mode === "solving") {
         event.preventDefault();
-        togglePause();
+        if (state.step) advanceStep();
+        else togglePause();
       }
       return;
     }
 
     const key = event.key.toUpperCase();
+    if (key === "N" && state.mode === "solving" && state.step) {
+      event.preventDefault();
+      if (!event.repeat) advanceStep();
+      return;
+    }
+
     if (key.length === 1 && FACE_KEYS.includes(key)) {
       event.preventDefault();
       if (event.repeat) return;
@@ -1905,12 +2356,19 @@ self.onmessage = function (event) {
 
   scrambleBtn.addEventListener("click", () => scramble());
   solveBtn.addEventListener("click", () => solveCube());
+  autoBtn.addEventListener("click", () => autoSolve());
+  cinePause.addEventListener("click", () =>
+    state.step ? advanceStep() : togglePause()
+  );
+  cineExit.addEventListener("click", () => cancelCinematicCamera());
   undoBtn.addEventListener("click", () => undo());
   resetBtn.addEventListener("click", () => resetCube());
-  pauseBtn.addEventListener("click", () => togglePause());
+  pauseBtn.addEventListener("click", () =>
+    state.step ? advanceStep() : togglePause()
+  );
 
   for (const button of speedButtons) {
-    button.addEventListener("click", () => setSpeed(Number(button.dataset.speed)));
+    button.addEventListener("click", () => setSpeed(button.dataset.speed));
   }
 
   soundBtn.addEventListener("click", () => {
@@ -1981,7 +2439,7 @@ self.onmessage = function (event) {
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    fitCamera();
+    if (!CINEMA.active) fitCamera();
   }
 
   window.addEventListener("resize", onResize);
@@ -1992,7 +2450,9 @@ self.onmessage = function (event) {
     requestAnimationFrame(animate);
     const dt = Math.min(0.05, (now - lastFrame) / 1000);
     lastFrame = now;
+    updateCinemaCamera(now);
     controls.update();
+    updateStickerGlow(dt);
     updateConfetti(dt);
     renderer.render(scene, camera);
   }
@@ -2001,7 +2461,7 @@ self.onmessage = function (event) {
      boot
      ------------------------------------------------------------ */
 
-  setSpeed(state.speed);
+  setSpeed(state.step ? "step" : state.speed);
   updateSoundButton();
   updateStats();
   renderHistory();
@@ -2041,8 +2501,19 @@ self.onmessage = function (event) {
         solver: { worker: Boolean(solverWorker), main: state.solverReady },
         assisted: state.assisted,
         started: state.started,
+        paused: state.paused,
+        step: state.step,
+        stepWaiting: state.stepWaiting,
         timerMs: timerMs(),
         best: state.best,
+        camera: {
+          position: camera.position.toArray(),
+          target: controls.target.toArray(),
+        },
+        cinematic: {
+          active: CINEMA.active,
+          cameraCancelled: CINEMA.cameraCancelled,
+        },
       }),
       move: (move) =>
         performMove(move, {
@@ -2065,6 +2536,7 @@ self.onmessage = function (event) {
       reset: () => resetCube({ silent: true }),
       scramble,
       solve: solveCube,
+      autoSolve,
       setSpeed,
       screenPoint: (face, row, col) => {
         const sticker = stickerMeshes.find((candidate) => {
@@ -2168,6 +2640,63 @@ self.onmessage = function (event) {
       }
     }
     log(`drag map  ${dragOk ? "ok" : "FAIL"}`);
+
+    const cinemaUi = Boolean(
+      document.getElementById("autoBtn") &&
+        document.getElementById("cineExit") &&
+        document.getElementById("cinePause")
+    );
+    log(`cinema ui ${cinemaUi ? "ok" : "FAIL"}`);
+    if (!cinemaUi) pass = false;
+
+    const stepUi = Boolean(
+      document.querySelector('.speed-btn[data-speed="step"]')
+    );
+    log(`step ui ${stepUi ? "ok" : "FAIL"}`);
+    if (!stepUi) pass = false;
+
+    const previousSpeed = state.speed;
+    const previousStep = state.step;
+    setSpeed("step");
+    const stepOn = state.step === true;
+    const gate = waitForStep();
+    const waiting = state.stepWaiting === true;
+    advanceStep();
+    await gate;
+    const stepped = state.stepWaiting === false;
+    setSpeed(previousStep ? "step" : previousSpeed);
+    log(`step mode ${stepOn && waiting && stepped ? "ok" : "FAIL"}`);
+    if (!stepOn || !waiting || !stepped) pass = false;
+
+    let cinemaViewsOk = true;
+    for (const face of FACE_KEYS) {
+      const view = CINEMA_FACE_VIEW[face];
+      const direction = directionFromSpherical(view.theta * DEG, view.phi * DEG);
+      const dot = direction.dot(FACE_NORMALS[face]);
+      if (dot < 0.4) {
+        cinemaViewsOk = false;
+        log(`cinema ${face}: dot ${dot.toFixed(2)}`);
+      }
+    }
+    log(`cinema view ${cinemaViewsOk ? "ok" : "FAIL"}`);
+    if (!cinemaViewsOk) pass = false;
+
+    const glowLayer = cubelets.filter(
+      (cubelet) => Math.round(cubelet.position.x) === 1
+    );
+    setLayerGlow(glowLayer, true);
+    for (let i = 0; i < 24; i++) updateStickerGlow(1 / 60);
+    const glowing = glowLayer.some((cubelet) =>
+      cubelet.children.some(
+        (child) =>
+          child.userData && child.userData.baseColor && child.userData.glow > 0.5
+      )
+    );
+    clearLayerGlow();
+    for (let i = 0; i < 60; i++) updateStickerGlow(1 / 60);
+    const glowCleared = glowStickers.size === 0;
+    log(`layer glow ${glowing && glowCleared ? "ok" : "FAIL"}`);
+    if (!glowing || !glowCleared) pass = false;
 
     try {
       if (typeof Cube.initSolver === "function") {

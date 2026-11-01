@@ -104,6 +104,7 @@
     <button class="speed-btn" type="button" data-speed="650">Slow</button>
     <button class="speed-btn is-active" type="button" data-speed="330">Medium</button>
     <button class="speed-btn" type="button" data-speed="150">Fast</button>
+    <button class="speed-btn" type="button" data-speed="step" title="Advance one move at a time">Step</button>
     <button class="pause-btn" id="pauseBtn" type="button" aria-label="Pause solver playback">
       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
       <span id="pauseText">Pause</span>
@@ -142,6 +143,13 @@
         </svg>
         <span>Solve</span>
       </button>
+      <button class="action-btn auto" id="autoBtn" type="button" aria-label="Auto Solve" title="Watch a cinematic auto-solve from start to finish">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="3"/>
+          <path d="M10 9.2v5.6l4.8-2.8L10 9.2Z" fill="currentColor" stroke="none"/>
+        </svg>
+        <span>Auto Solve</span>
+      </button>
       <button class="action-btn" id="undoBtn" type="button" title="Undo the last move">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 7 4 12l5 5"/>
@@ -163,6 +171,20 @@
     Drag a sticker to turn a layer · drag empty space to orbit · scroll to zoom ·
     <kbd>U</kbd><kbd>D</kbd><kbd>L</kbd><kbd>R</kbd><kbd>F</kbd><kbd>B</kbd> turn · <kbd>⇧</kbd> prime
   </div>
+</div>
+
+<div class="cine-controls" id="cineControls">
+  <button class="cine-btn pause" id="cinePause" type="button" aria-label="Pause solver playback">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    <span id="cinePauseText">Pause</span>
+  </button>
+  <button class="cine-btn" id="cineExit" type="button" aria-label="Take control of the camera">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 12h16"/>
+      <path d="m14 6 6 6-6 6"/>
+    </svg>
+    <span>Take control</span>
+  </button>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -219,6 +241,15 @@
       <div class="help-grid" style="margin-top:8px">
         <div class="help-item"><b>Undo</b><div class="key-row"><kbd>Z</kbd></div></div>
         <div class="help-item"><b>Pause playback</b><div class="key-row"><kbd>Space</kbd></div></div>
+        <div class="help-item"><b>Next move in Step mode</b><div class="key-row"><kbd>Space</kbd><kbd>N</kbd></div></div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <h3>Auto Solve</h3>
+      <div class="help-item">
+        <b>Watch it solve itself</b>
+        Auto Solve scrambles a solved cube, computes a Kociemba solution, then performs it with a camera that follows the working layer and a glow on the turning layer. Drag the cube or press <kbd>Esc</kbd> to take the camera back — the solve keeps playing.
       </div>
     </div>
 
@@ -226,7 +257,7 @@
       <h3>The solver</h3>
       <div class="help-item">
         <b>Kociemba two-phase reduction</b>
-        CubeLab computes a solution from the current state — usually 20 moves or fewer — then plays it back at your chosen speed. Slow, Medium, and Fast are in the playback bar above the controls.
+        CubeLab computes a solution from the current state — usually 20 moves or fewer — then plays it back at your chosen speed. Slow, Medium, and Fast play automatically; Step waits for you and advances one move each time you click Next (or press <kbd>Space</kbd> / <kbd>N</kbd>).
       </div>
     </div>
 
