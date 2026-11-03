@@ -7,7 +7,7 @@ latest commit on `main` and to the currently deployed GitHub Pages site.
 
 | Version | Supported |
 | --- | :---: |
-| `main` / 1.x | ✅ |
+| `main` / current deployment | ✅ |
 | Older snapshots | ❌ |
 
 ## Reporting a vulnerability
@@ -32,14 +32,14 @@ fixed on `main`, and credited in the release notes unless you prefer to remain a
 ## Scope
 
 CubeLab has no server, accounts, analytics, or telemetry. Any data the app remembers is
-stored in the browser, and files are only downloaded when the user explicitly exports
-them. Relevant areas include:
+stored in the browser. Relevant areas include:
 
-- cross-site scripting through imported files, saved state, or `localStorage` values;
-- unsafe HTML rendering of titles, labels, or user-provided text;
-- denial of service through pathological input or oversized save files;
-- unintended data exposure from persisted progress or exports;
-- supply-chain risk from third-party scripts loaded by the static site.
+- cross-site scripting through `localStorage` values or rendered move/status text;
+- unsafe HTML rendering of labels, move history, or other user-controlled text;
+- denial of service through pathological input or oversized `localStorage` values;
+- unintended data exposure from persisted preferences or personal best;
+- supply-chain risk from the Three.js scripts loaded from jsDelivr;
+- worker isolation: the solver worker is built from an inlined Blob, not a remote script.
 
 The following are generally out of scope:
 
@@ -52,8 +52,14 @@ The following are generally out of scope:
 
 - The application is served as static HTML, CSS, and JavaScript. There is no backend,
   database, account system, or API key.
-- User-controlled text is rendered as text rather than injected as HTML.
-- Imported save files are parsed and validated before they replace local state.
-- Progress and preferences stay in `localStorage` on the user's device.
-- Third-party runtime libraries are loaded from their public CDNs and are documented in
-  the repository. No analytics or tracking scripts are included.
+- User-controlled text is rendered as text rather than injected as HTML; move strings are
+  validated against the known move set before use.
+- Preferences and the personal best stay in `localStorage` on the user's device. No data is
+  uploaded.
+- The solver worker is a Blob built from the inlined vendor source; no external worker
+  script is fetched.
+- Three.js is loaded from jsDelivr at a pinned version. The app does not use Subresource
+  Integrity; pinning limits drift but does not remove CDN supply-chain risk. Vendoring
+  Three.js or adding SRI is a future hardening option.
+- There are no analytics, tracking scripts, or third-party requests beyond the Three.js
+  scripts.

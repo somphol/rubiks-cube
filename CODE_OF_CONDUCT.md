@@ -59,8 +59,10 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behaviour may be
-reported to the community leaders responsible for enforcement at
-**somphol@gmail.com**.
+reported privately through the repository's
+[private reporting form](https://github.com/somphol/rubiks-cube/security/advisories/new)
+or by contacting the maintainer through their
+[GitHub profile](https://github.com/somphol).
 
 All complaints will be reviewed and investigated promptly and fairly.
 

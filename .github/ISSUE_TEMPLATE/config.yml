@@ -3,6 +3,12 @@ contact_links:
   - name: Live demo
     url: https://somphol.github.io/rubiks-cube/
     about: Try the latest version before filing an issue.
+  - name: Documentation and FAQ
+    url: https://github.com/somphol/rubiks-cube/blob/main/docs/FAQ.md
+    about: Check setup, solver, controls, and browser questions first.
+  - name: Support
+    url: https://github.com/somphol/rubiks-cube/blob/main/SUPPORT.md
+    about: Where to ask for help and what to include.
   - name: Security vulnerability
     url: https://github.com/somphol/rubiks-cube/security/advisories/new
     about: Report security issues privately. Do not open a public issue.

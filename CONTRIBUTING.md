@@ -12,6 +12,8 @@ Keeping the project static, fast, and dependency-light is part of the design.
 - Improve performance or reduce visual and runtime cost.
 
 For security issues, do **not** open a public issue. Follow [SECURITY.md](SECURITY.md).
+For the runtime map, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); for the test
+matrix, see [docs/TESTING.md](docs/TESTING.md).
 
 ## Before you start
 
@@ -38,6 +40,7 @@ python3 -m http.server 8000
 ```
 
 Edit the sources in `src/`, then regenerate the playable file with `python3 build.py`.
+The generated `index.html` is committed; CI fails if it is stale.
 
 The first load needs an internet connection because Three.js and other runtime libraries are loaded from public CDNs.
 
@@ -64,12 +67,15 @@ Prefer plain HTML, CSS, and JavaScript. If a new library is unavoidable, explain
 
 Before opening a pull request:
 
+- Run `python3 build.py` and confirm `git diff --exit-code -- index.html` passes.
+- Open `index.html?selftest` and confirm `RESULT PASS`.
 - Open the live demo or run the app from a local server.
 - Check the browser console for errors.
 - Test in current Chrome, Safari, Firefox, and Edge where possible.
 - Check desktop, tablet, and phone widths.
 - Exercise the main flow end to end, including reload and persistence.
-- Re-check any import or export path you touched.
+- Re-check the solver with `?noworker` if you touched the worker path.
+- Re-check persistence (sound, playback speed, Step mode, personal best).
 
 ## Commit messages
 
@@ -87,10 +93,12 @@ chore: update repository metadata
 
 - [ ] The change stays within the static, no-backend architecture.
 - [ ] No new runtime dependency was added without discussion.
+- [ ] The generated `index.html` was rebuilt and committed.
+- [ ] `?selftest` reports `PASS`.
 - [ ] The app runs without console errors.
 - [ ] Desktop and mobile layouts were checked.
 - [ ] Keyboard navigation and focus states still work.
-- [ ] Persistence and import/export still behave correctly.
+- [ ] Persistence (sound, playback speed, Step mode, personal best) still works.
 - [ ] Documentation and screenshots are updated when behaviour changes.
 - [ ] The pull request description explains the problem and the chosen solution.
 

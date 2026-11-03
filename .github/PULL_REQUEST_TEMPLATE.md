@@ -21,10 +21,12 @@
 
 <!-- Describe what you ran and what you checked manually. -->
 
+- [ ] `python3 build.py` was run and `index.html` was committed
+- [ ] `?selftest` reports `PASS`
 - [ ] The app runs from a local server without console errors
 - [ ] Checked desktop, tablet, and phone widths
 - [ ] Checked keyboard-only navigation and focus states
-- [ ] Checked reload, persistence, and import/export paths
+- [ ] Checked reload and persistence (sound, speed, Step mode, best)
 - [ ] No backend, tracking, or unnecessary dependency was added
 - [ ] Documentation and screenshots are up to date
 

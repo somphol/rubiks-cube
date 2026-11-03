@@ -1,0 +1,40 @@
+name: Question
+description: Ask for help using CubeLab.
+title: "question: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for asking. Please check the
+        [FAQ](https://github.com/somphol/rubiks-cube/blob/main/docs/FAQ.md) and
+        [browser support notes](https://github.com/somphol/rubiks-cube/blob/main/docs/BROWSER_SUPPORT.md)
+        first. Do not report security vulnerabilities here — see
+        [SECURITY.md](https://github.com/somphol/rubiks-cube/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: Describe the goal and the cube state if it matters.
+      placeholder: I want to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Controls, modes, browsers, and anything that changed the result.
+      placeholder: I tried...
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      placeholder: Safari 18 on macOS 15
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, console output, or a link to the state if useful.
