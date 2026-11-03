@@ -158,6 +158,8 @@ documentation fixes alike. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and th
 | --- | --- |
 | [README.md](README.md) | Overview, setup, controls, and architecture |
 | [docs/README.md](docs/README.md) | Documentation index: architecture, testing, release, design, accessibility, browser support, performance, FAQ, roadmap |
+| [docs/REPRODUCTION.md](docs/REPRODUCTION.md) | Complete blueprint to rebuild the project from an empty directory |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture decision records and rationale |
 | [AGENTS.md](AGENTS.md) | Agent and maintainer handoff |
 | [SUPPORT.md](SUPPORT.md) | Where to get help |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes and release history |

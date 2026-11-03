@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release-grade documentation set: contributing guide, code of conduct, security policy,
   changelog, issue/PR templates, `AGENTS.md`, `SUPPORT.md`, a docs index, architecture,
   testing, release, design, accessibility, browser support, performance, FAQ, and roadmap.
+- A complete reproduction blueprint (`docs/REPRODUCTION.md`) and architecture decision log
+  (`docs/DECISIONS.md`) so the build, exact values, and rationale survive session loss.
 - A GitHub Actions build check that verifies `index.html` is regenerated from `src/`.
 - A question issue template and documentation links in the issue chooser.
 - A 1200 × 630 social preview card and Open Graph / Twitter metadata for link previews.

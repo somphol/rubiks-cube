@@ -88,3 +88,5 @@ There is no npm install and no build dependency beyond Python 3.
   `index.html`; `.nojekyll` is present.
 - Documentation: [docs/README.md](docs/README.md). Release process:
   [docs/RELEASE.md](docs/RELEASE.md).
+- Reproduction blueprint: [docs/REPRODUCTION.md](docs/REPRODUCTION.md). Decision log:
+  [docs/DECISIONS.md](docs/DECISIONS.md).

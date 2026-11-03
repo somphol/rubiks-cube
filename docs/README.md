@@ -5,6 +5,8 @@ directory holds the longer-lived reference material.
 
 | Document | What it covers |
 | --- | --- |
+| [REPRODUCTION.md](REPRODUCTION.md) | Complete blueprint to rebuild the project from an empty directory |
+| [DECISIONS.md](DECISIONS.md) | Architecture decision records and rationale |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Runtime shape, build pipeline, cube model, solver, camera, playback, state |
 | [TESTING.md](TESTING.md) | Self-test, debug API, manual matrix, build check |
 | [RELEASE.md](RELEASE.md) | Versioning, release checklist, deployment, rollback |
